@@ -1,8 +1,6 @@
 TARGET = funtetris
 OBJS = main.o
 
-LIBS = -lpspgu -lpspgum
-
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = funtetris
 
