@@ -4,77 +4,82 @@
 #include "j2me_font.h"
 #include "j2me_input.h"
 #include "j2me_image.h"
-#include "cod_player.h"
+#include "cod_player.h"   // cod_player_pixels[6144], 48x128
+#include "cod_ground.h"   // cod_ground_pixels[...], 112x64
+#include "cod_axis.h"     // cod_axis_pixels[...], 48x128
 
-PSP_MODULE_INFO("sprites_test", 0, 1, 0);
+PSP_MODULE_INFO("cod_psp", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
+
+// Cria uma J2MEImage a partir de um array ARGB
+static J2MEImage* imagem_de_pixels(const unsigned int* src, int w, int h) {
+    J2MEImage* img = j2me_image_create(w, h);
+    if (!img) return NULL;
+    for (int i = 0; i < w * h; i++) {
+        img->pixels[i] = src[i];
+    }
+    return img;
+}
 
 int main(void) {
     j2me_gfx_init();
     j2me_input_init();
 
-    J2MEImage* img = j2me_image_create(COD_PLAYER_W, COD_PLAYER_H);
-    memcpy(img->pixels, cod_player_pixels, COD_PLAYER_W * COD_PLAYER_H * 4);
+    J2MEImage* player = imagem_de_pixels(cod_player_pixels, COD_PLAYER_W, COD_PLAYER_H);
+    J2MEImage* ground = imagem_de_pixels(cod_ground_pixels, COD_GROUND_W, COD_GROUND_H);
+    J2MEImage* axis   = imagem_de_pixels(cod_axis_pixels,   COD_AXIS_W,   COD_AXIS_H);
 
     int frame = 0;
+    int t = 0;
 
     while (1) {
         j2me_input_update();
         if (j2me_input_should_quit()) break;
 
-        // Muda com L/R
-        if (j2me_input_is_pressed(J2ME_LEFT))  frame--;
-        if (j2me_input_is_pressed(J2ME_RIGHT)) frame++;
-
         j2me_gfx_begin_frame();
         j2me_gfx_clear(0x101020);
 
         j2me_gfx_set_color(0xFFFF00);
-        j2me_font_draw("TODOS OS 24 SPRITES DO PLAYER.PNG", 10, 10);
-        j2me_gfx_set_color(0x808080);
-        j2me_font_draw("Cada sprite = 16x16. Numero = (linha, coluna)", 10, 25);
+        j2me_font_draw("CoD sprites extraidos do JAR original", 10, 10);
 
-        // Desenha grade 3x8 com numeros
-        for (int lin = 0; lin < 8; lin++) {
-            for (int col = 0; col < 3; col++) {
-                int x = 60 + col * 90;
-                int y = 50 + lin * 26;
-                int idx = lin * 3 + col;
+        // Bloco de chao (grade 7x4 de 16x16)
+        j2me_gfx_set_color(0xFFFFFF);
+        j2me_font_draw("ground.png (112x64):", 10, 30);
+        j2me_image_blit(ground, 10, 50);
 
-                // Sprite (ampliado 1.5x pra ver melhor)
-                j2me_image_draw_region(img, col*16, lin*16, 16, 16, TRANS_NONE,
-                    x, y, TOP|LEFT);
+        // Axis (inimigo)
+        j2me_gfx_set_color(0xFF8080);
+        j2me_font_draw("axis.png (48x128):", 150, 30);
+        j2me_image_blit(axis, 150, 50);
 
-                // Numero
-                char buf[16];
-                buf[0] = '0' + lin;
-                buf[1] = ',';
-                buf[2] = '0' + col;
-                buf[3] = 0;
+        // Player com animacao simples (4 frames alternando)
+        j2me_gfx_set_color(0x80FF80);
+        j2me_font_draw("player.png (48x128):", 280, 30);
+        j2me_image_blit(player, 280, 50);
 
-                j2me_gfx_set_color(idx == frame ? 0x00FF00 : 0xFFFFFF);
-                j2me_font_draw(buf, x + 22, y + 5);
+        // Player ampliado 2x no canto inferior
+        j2me_gfx_set_color(0x80FFFF);
+        j2me_font_draw("Player 2x (animando frame):", 10, 200);
+        // Desenha o player em escala 2x (desenha pixel por pixel)
+        for (int y = 0; y < COD_PLAYER_H; y++) {
+            for (int x = 0; x < COD_PLAYER_W; x++) {
+                unsigned int cor = player->pixels[y * COD_PLAYER_W + x];
+                if ((cor & 0xFF000000) == 0) continue;
+                j2me_gfx_set_color(cor & 0xFFFFFF);
+                j2me_gfx_fill_rect(200 + x * 2, 100 + y * 2 - (frame % 4) * 32 * 2, 2, 2);
             }
         }
 
-        // Destaca o sprite atual (frame)
-        int dcol = frame % 3;
-        int dlin = frame / 3;
-        int dx = 60 + dcol * 90;
-        int dy = 50 + dlin * 26;
-        j2me_gfx_set_color(0xFF0000);
-        j2me_gfx_fill_rect(dx - 2, dy - 2, 20, 2);
-        j2me_gfx_fill_rect(dx - 2, dy + 16, 20, 2);
-        j2me_gfx_fill_rect(dx - 2, dy, 2, 18);
-        j2me_gfx_fill_rect(dx + 16, dy, 2, 18);
-
-        j2me_gfx_set_color(0x00FFFF);
-        j2me_font_draw("<- -> muda o destaque", 10, 250);
+        // Contador de frames
+        t++;
+        if (t % 30 == 0) frame++;
 
         j2me_gfx_flip();
     }
 
-    j2me_image_free(img);
+    j2me_image_free(player);
+    j2me_image_free(ground);
+    j2me_image_free(axis);
     j2me_gfx_shutdown();
     sceKernelExitGame();
     return 0;
