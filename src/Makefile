@@ -1,7 +1,5 @@
 TARGET = funtetris
-OBJS = main.o j2me_runtime.o j2me_gfx.o
-
-LIBS = -lpspgu -lpspgum
+OBJS = main.o
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = funtetris
