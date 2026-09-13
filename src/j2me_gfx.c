@@ -105,8 +105,8 @@ void j2me_gfx_fill_rect(int x, int y, int w, int h) {
     v[0].z = 0;
     v[0].color = c;
 
-    v[1].x = (unsigned short)(x + w);
-    v[1].y = (unsigned short)(y + h);
+    v[1].x = (unsigned short)w;
+    v[1].y = (unsigned short)h;
     v[1].z = 0;
     v[1].color = c;
 
