@@ -10,3 +10,5 @@ __pycache__/
 # Jogos (nao subir - direitos autorais)
 jogos/*.jar
 jogos_teste/*.jar
+jogos_bons/*.jar
+jogos_teste/*.jar
