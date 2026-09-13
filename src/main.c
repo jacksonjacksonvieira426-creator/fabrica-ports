@@ -418,7 +418,7 @@ int main(void) {
         if (a & J2ME_DOWN)  { direcao = 1; if (livre(px, py+2)) { py += 2; moveu = 1; } }
         if (j2me_input_is_pressed(J2ME_FIRE)) atirar();
 
-        if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%4; frame_time = 0; } }
+        if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%8; frame_time = 0; } }
 
         // Atualiza tiros
         for (int i = 0; i < MAX_T; i++) {
@@ -492,7 +492,7 @@ int main(void) {
         desenhar_mundo(s_ground);
 
         // Bandeira (objetivo) - usa special.png
-        j2me_image_draw_region(s_special, 32, 0, 16, 16, TRANS_NONE,
+        j2me_image_draw_region(s_special, 5*16, 2*16, 16, 16, TRANS_NONE,
             flag_x - cam_x, flag_y - cam_y, TOP|LEFT);
         // Brilho vermelho em volta
         j2me_gfx_set_color(0xFF0000);
@@ -512,9 +512,18 @@ int main(void) {
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
         }
 
-        // Player
-        int fx = (frame_anim % 2) * 16;
-        j2me_image_draw_region(s_player, fx, 0, 16, 16, TRANS_NONE,
+        // Player - usa coluna=direcao, linha=frame
+        // direcao: 0=cima, 1=baixo, 2=esq, 3=dir
+        // Mapeia pra colunas do sprite sheet (3 colunas: esq, baixo, dir)
+        int col_spr;
+        if (direcao == 2) col_spr = 0;       // esquerda
+        else if (direcao == 1) col_spr = 1;  // baixo
+        else if (direcao == 3) col_spr = 2;  // direita
+        else col_spr = 1;                    // cima usa baixo (mais comum)
+        
+        int lin_spr = frame_anim % 8;  // 8 frames de caminhada
+        
+        j2me_image_draw_region(s_player, col_spr*16, lin_spr*16, 16, 16, TRANS_NONE,
             px - cam_x, py - cam_y, TOP|LEFT);
 
         // HUD
