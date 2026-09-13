@@ -12,15 +12,7 @@
 static unsigned int cur_color_rgb = 0x000000;
 
 // Declarado em j2me_image.c
-typedef struct J2MEImage J2MEImage;
 extern J2MEImage* j2me_image_get_target(void);
-
-// Declaracao local (compativel com j2me_image.h)
-struct J2MEImage {
-    int            w;
-    int            h;
-    unsigned int*  pixels;
-};
 
 static unsigned int rgb_to_psp(unsigned int rgb) {
     unsigned int r = (rgb >> 16) & 0xFF;
@@ -58,7 +50,6 @@ void j2me_gfx_clear(unsigned int rgb) {
     }
 }
 
-// Desenha um retangulo no destino atual (tela ou imagem)
 void j2me_gfx_fill_rect(int x, int y, int w, int h) {
     if (w <= 0 || h <= 0) return;
 
@@ -66,7 +57,6 @@ void j2me_gfx_fill_rect(int x, int y, int w, int h) {
     J2MEImage* alvo = j2me_image_get_target();
 
     if (alvo) {
-        // Desenha na imagem
         for (int j = 0; j < h; j++) {
             int dy = y + j;
             if (dy < 0 || dy >= alvo->h) continue;
@@ -78,7 +68,6 @@ void j2me_gfx_fill_rect(int x, int y, int w, int h) {
             }
         }
     } else {
-        // Desenha na tela
         if (x < 0) { w += x; x = 0; }
         if (y < 0) { h += y; y = 0; }
         if (x + w > SCR_W)  w = SCR_W - x;
