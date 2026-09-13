@@ -2,6 +2,7 @@
 #include <pspkernel.h>
 #include <pspdisplay.h>
 #include <pspgu.h>
+#include <pspgum.h>
 
 #define BUF_WIDTH  512
 #define SCR_WIDTH  J2ME_SCREEN_W
@@ -10,10 +11,9 @@
 static unsigned int __attribute__((aligned(16))) list[262144];
 static unsigned int cur_color_rgb = 0x000000;
 
-// Sem packed! Floats garantem alinhamento de 4 bytes
 typedef struct {
-    float x, y, z;
-    unsigned int color;
+    unsigned short x, y, z;
+    unsigned int   color;
 } Vertex;
 
 static unsigned int rgb_to_psp(unsigned int rgb) {
@@ -40,6 +40,15 @@ void j2me_gfx_init(void) {
     sceGuDisable(GU_BLEND);
     sceGuDisable(GU_TEXTURE_2D);
     sceGuDisable(GU_ALPHA_TEST);
+
+    // Matrixes explicitas (identidade)
+    sceGumMatrixMode(GU_PROJECTION);
+    sceGumLoadIdentity();
+    sceGumMatrixMode(GU_VIEW);
+    sceGumLoadIdentity();
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+
     sceGuFinish();
     sceGuSync(0, 0);
     sceDisplayWaitVblankStart();
@@ -75,25 +84,21 @@ void j2me_gfx_fill_rect(int x, int y, int w, int h) {
     if (w <= 0 || h <= 0) return;
 
     unsigned int c = rgb_to_psp(cur_color_rgb);
-    float fx  = (float)x;
-    float fy  = (float)y;
-    float fx2 = (float)(x + w);
-    float fy2 = (float)(y + h);
 
-    Vertex* v = (Vertex*)sceGuGetMemory(6 * sizeof(Vertex));
+    Vertex* v = (Vertex*)sceGuGetMemory(2 * sizeof(Vertex));
     if (!v) return;
 
-    // Triangulo 1: TL, TR, BR
-    v[0].x = fx;  v[0].y = fy;  v[0].z = 0.0f; v[0].color = c;
-    v[1].x = fx2; v[1].y = fy;  v[1].z = 0.0f; v[1].color = c;
-    v[2].x = fx2; v[2].y = fy2; v[2].z = 0.0f; v[2].color = c;
+    v[0].x = (unsigned short)x;
+    v[0].y = (unsigned short)y;
+    v[0].z = 0;
+    v[0].color = c;
 
-    // Triangulo 2: TL, BR, BL
-    v[3].x = fx;  v[3].y = fy;  v[3].z = 0.0f; v[3].color = c;
-    v[4].x = fx2; v[4].y = fy2; v[4].z = 0.0f; v[4].color = c;
-    v[5].x = fx;  v[5].y = fy2; v[5].z = 0.0f; v[5].color = c;
+    v[1].x = (unsigned short)(x + w);
+    v[1].y = (unsigned short)(y + h);
+    v[1].z = 0;
+    v[1].color = c;
 
-    sceGuDrawArray(GU_TRIANGLES,
-                   GU_VERTEX_32BITF | GU_COLOR_8888 | GU_TRANSFORM_2D,
-                   6, 0, v);
+    sceGuDrawArray(GU_SPRITES,
+                   GU_VERTEX_16BIT | GU_COLOR_8888 | GU_TRANSFORM_2D,
+                   2, 0, v);
 }
