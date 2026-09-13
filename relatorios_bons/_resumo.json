@@ -1,0 +1,52 @@
+[
+  {
+    "jogo": "Castlevania1.jar",
+    "nivel": "COMPLEXO",
+    "apis": 75,
+    "classes": 6,
+    "metodos": 55,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "MetalSlug.jar",
+    "nivel": "COMPLEXO",
+    "apis": 79,
+    "classes": 3,
+    "metodos": 96,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "MightAndMagic.jar",
+    "nivel": "COMPLEXO",
+    "apis": 79,
+    "classes": 5,
+    "metodos": 243,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "call_of_duty.jar",
+    "nivel": "COMPLEXO",
+    "apis": 65,
+    "classes": 4,
+    "metodos": 65,
+    "threads": false,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "splinterCell2.jar",
+    "nivel": "COMPLEXO",
+    "apis": 68,
+    "classes": 4,
+    "metodos": 126,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  }
+]
