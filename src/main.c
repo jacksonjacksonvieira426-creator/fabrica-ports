@@ -9,13 +9,12 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 int main(void) {
     pspDebugScreenInit();
 
-    // Testa o runtime
     j2me_random_init();
     int64_t t = j2me_time_ms();
 
     pspDebugScreenPrintf("Funtetris PSP\n");
     pspDebugScreenPrintf("Runtime OK\n");
-    pspDebugScreenPrintf("Tempo: %d ms\n", (int)t);
+    pspDebugScreenPrintf("Tempo: %lld ms\n", (long long)t);
     pspDebugScreenPrintf("Random: %d\n", j2me_random_next(100));
     pspDebugScreenPrintf("Random: %d\n", j2me_random_next(100));
     pspDebugScreenPrintf("Random: %d\n", j2me_random_next(100));

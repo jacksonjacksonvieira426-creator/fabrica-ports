@@ -4,18 +4,32 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef __PSP__
+#include <pspkernel.h>
+#endif
+
 // ===== TEMPO =====
 int64_t j2me_time_ms(void) {
+#ifdef __PSP__
+    // PSP: tempo desde o boot em microssegundos
+    return (int64_t)(sceKernelGetSystemTimeWide() / 1000);
+#else
+    // Linux/Termux: clock monotônico
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
 }
 
 // ===== RANDOM =====
 static unsigned int rng_state = 0;
 
 void j2me_random_init(void) {
+#ifdef __PSP__
+    rng_state = (unsigned int)sceKernelGetSystemTimeWide();
+#else
     rng_state = (unsigned int)time(NULL);
+#endif
 }
 
 int j2me_random_next(int max) {
@@ -50,7 +64,6 @@ void j2me_timer_init(void) { }
 
 void j2me_timer_schedule(int delay_ms, int period_ms, j2me_timer_cb cb, void* arg) {
     (void)delay_ms; (void)period_ms; (void)cb; (void)arg;
-    // TODO: implementar com threads do PSP
 }
 
 void j2me_timer_cancel(void) { }
