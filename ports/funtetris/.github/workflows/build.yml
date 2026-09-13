@@ -1,0 +1,17 @@
+name: Build PSP
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/pspdev/pspdev:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cd src
+          make
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EBOOT-PSP
+          path: src/EBOOT.PBP
+          if-no-files-found: error
