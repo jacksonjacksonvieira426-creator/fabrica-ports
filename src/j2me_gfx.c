@@ -1,22 +1,15 @@
 #include "j2me_gfx.h"
 #include <pspkernel.h>
 #include <pspdisplay.h>
-#include <pspgu.h>
-#include <pspgum.h>
 
-#define BUF_WIDTH  512
 #define SCR_WIDTH  J2ME_SCREEN_W
 #define SCR_HEIGHT J2ME_SCREEN_H
 
-static unsigned int __attribute__((aligned(16))) list[262144];
+static unsigned int* g_fb = NULL;
+static int g_stride = 0;
 static unsigned int cur_color_rgb = 0x000000;
 
-typedef struct __attribute__((packed)) {
-    unsigned short x, y, z;
-    unsigned int   color;
-} Vertex;
-
-static unsigned int rgb_to_psp(unsigned int rgb) {
+static unsigned int rgb_to_fb(unsigned int rgb) {
     unsigned int r = (rgb >> 16) & 0xFF;
     unsigned int g = (rgb >>  8) & 0xFF;
     unsigned int b =  rgb        & 0xFF;
@@ -24,46 +17,29 @@ static unsigned int rgb_to_psp(unsigned int rgb) {
 }
 
 void j2me_gfx_init(void) {
-    sceGuInit();
-    sceGuStart(GU_DIRECT, list);
-    sceGuDrawBuffer(GU_PSM_8888, (void*)0, BUF_WIDTH);
-    sceGuDispBuffer(SCR_WIDTH, SCR_HEIGHT, (void*)0x88000, BUF_WIDTH);
-    sceGuDepthBuffer((void*)0x110000, BUF_WIDTH);
-    sceGuOffset(2048 - (SCR_WIDTH/2), 2048 - (SCR_HEIGHT/2));
-    sceGuViewport(2048, 2048, SCR_WIDTH, SCR_HEIGHT);
-    sceGuDepthRange(0xC350, 0xFFFF);
-    sceGuScissor(0, 0, SCR_WIDTH, SCR_HEIGHT);
-    sceGuEnable(GU_SCISSOR_TEST);
-    sceGuDisable(GU_DEPTH_TEST);
-    sceGuDisable(GU_CULL_FACE);
-    sceGuDisable(GU_LIGHTING);
-    sceGuDisable(GU_BLEND);
-    sceGuDisable(GU_TEXTURE_2D);
-    sceGuDisable(GU_ALPHA_TEST);
-    sceGuFinish();
-    sceGuSync(0, 0);
-    sceDisplayWaitVblankStart();
-    sceGuDisplay(GU_TRUE);
+    sceDisplaySetMode(0, SCR_WIDTH, SCR_HEIGHT);
+    void* fb = NULL;
+    int stride = 0;
+    sceDisplayGetFrameBuf(&fb, &stride, NULL, PSP_DISPLAY_SETBUF_IMMEDIATE);
+    g_fb = (unsigned int*)fb;
+    g_stride = stride / 4;
 }
 
-void j2me_gfx_shutdown(void) {
-    sceGuDisplay(GU_FALSE);
-    sceGuTerm();
-}
+void j2me_gfx_shutdown(void) { }
 
-void j2me_gfx_begin_frame(void) {
-    sceGuStart(GU_DIRECT, list);
-}
+void j2me_gfx_begin_frame(void) { }
 
 void j2me_gfx_clear(unsigned int rgb) {
-    sceGuClearColor(rgb_to_psp(rgb));
-    sceGuClear(GU_COLOR_BUFFER_BIT);
+    unsigned int c = rgb_to_fb(rgb);
+    for (int y = 0; y < SCR_HEIGHT; y++) {
+        unsigned int* row = g_fb + y * g_stride;
+        for (int x = 0; x < SCR_WIDTH; x++) {
+            row[x] = c;
+        }
+    }
 }
 
 void j2me_gfx_flip(void) {
-    sceGuFinish();
-    sceGuSync(0, 0);
-    sceGuSwapBuffers();
     sceDisplayWaitVblankStart();
 }
 
@@ -73,19 +49,17 @@ void j2me_gfx_set_color(unsigned int rgb) {
 
 void j2me_gfx_fill_rect(int x, int y, int w, int h) {
     if (w <= 0 || h <= 0) return;
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > SCR_WIDTH)  w = SCR_WIDTH - x;
+    if (y + h > SCR_HEIGHT) h = SCR_HEIGHT - y;
+    if (w <= 0 || h <= 0) return;
 
-    unsigned int c = rgb_to_psp(cur_color_rgb);
-
-    Vertex* v = (Vertex*)sceGuGetMemory(4 * sizeof(Vertex));
-    if (!v) return;
-
-    // TRIANGLE_FAN: TL, TR, BR, BL (ordem correta = 2 triangulos)
-    v[0].x = (unsigned short)x;       v[0].y = (unsigned short)y;       v[0].z = 0; v[0].color = c;
-    v[1].x = (unsigned short)(x + w); v[1].y = (unsigned short)y;       v[1].z = 0; v[1].color = c;
-    v[2].x = (unsigned short)(x + w); v[2].y = (unsigned short)(y + h); v[2].z = 0; v[2].color = c;
-    v[3].x = (unsigned short)x;       v[3].y = (unsigned short)(y + h); v[3].z = 0; v[3].color = c;
-
-    sceGuDrawArray(GU_TRIANGLE_FAN,
-                   GU_VERTEX_16BIT | GU_COLOR_8888 | GU_TRANSFORM_2D,
-                   4, 0, v);
+    unsigned int c = rgb_to_fb(cur_color_rgb);
+    for (int j = 0; j < h; j++) {
+        unsigned int* row = g_fb + (y + j) * g_stride + x;
+        for (int i = 0; i < w; i++) {
+            row[i] = c;
+        }
+    }
 }
