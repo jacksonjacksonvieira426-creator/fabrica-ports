@@ -1,6 +1,7 @@
 // CoD PSP - Versao completa com 9 missoes
 #include <pspkernel.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "j2me_gfx.h"
 #include "j2me_font.h"
@@ -418,7 +419,7 @@ int main(void) {
         if (a & J2ME_DOWN)  { direcao = 1; if (livre(px, py+2)) { py += 2; moveu = 1; } }
         if (j2me_input_is_pressed(J2ME_FIRE)) atirar();
 
-        if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%8; frame_time = 0; } }
+        if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%3; frame_time = 0; } }
 
         // Atualiza tiros
         for (int i = 0; i < MAX_T; i++) {
@@ -508,20 +509,25 @@ int main(void) {
         // Inimigos
         for (int i = 0; i < n_inimigos; i++) {
             if (!inimigos[i].vivo) continue;
-            j2me_image_draw_region(s_axis, 0, 0, 16, 16, TRANS_NONE,
+            // Inimigo olha na direcao do player
+            int edx = px - inimigos[i].x;
+            int edy = py - inimigos[i].y;
+            int elin;
+            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 3 : 2;  // dir ou esq
+            else                     elin = (edy > 0) ? 1 : 0;  // baixo ou cima
+            j2me_image_draw_region(s_axis, 0, elin*16, 16, 16, TRANS_NONE,
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
         }
 
-        // Player - usa coluna=direcao, linha=frame
+        // Player - LINHA = direcao, COLUNA = frame de caminhada
         // direcao: 0=cima, 1=baixo, 2=esq, 3=dir
-        // Mapeia pra colunas do sprite sheet (3 colunas: esq, baixo, dir)
-        int col_spr;
-        if (direcao == 2) col_spr = 0;       // esquerda
-        else if (direcao == 1) col_spr = 1;  // baixo
-        else if (direcao == 3) col_spr = 2;  // direita
-        else col_spr = 1;                    // cima usa baixo (mais comum)
+        int lin_spr;
+        if (direcao == 0)      lin_spr = 0;  // cima
+        else if (direcao == 1) lin_spr = 1;  // baixo
+        else if (direcao == 2) lin_spr = 2;  // esquerda
+        else                   lin_spr = 3;  // direita
         
-        int lin_spr = frame_anim % 8;  // 8 frames de caminhada
+        int col_spr = frame_anim % 3;  // 3 frames de caminhada
         
         j2me_image_draw_region(s_player, col_spr*16, lin_spr*16, 16, 16, TRANS_NONE,
             px - cam_x, py - cam_y, TOP|LEFT);
