@@ -1,0 +1,92 @@
+[
+  {
+    "jogo": "Snake II.jar",
+    "nivel": "COMPLEXO",
+    "apis": 77,
+    "classes": 5,
+    "metodos": 40,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "Snake.jar",
+    "nivel": "COMPLEXO",
+    "apis": 77,
+    "classes": 5,
+    "metodos": 40,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "Snake2.jar",
+    "nivel": "COMPLEXO",
+    "apis": 77,
+    "classes": 5,
+    "metodos": 40,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "SnakeEX2.jar",
+    "nivel": "COMPLEXO",
+    "apis": 107,
+    "classes": 10,
+    "metodos": 76,
+    "threads": true,
+    "audio": true,
+    "proprietaria": true
+  },
+  {
+    "jogo": "Tetris.jar",
+    "nivel": "MEDIO",
+    "apis": 34,
+    "classes": 6,
+    "metodos": 43,
+    "threads": true,
+    "audio": false,
+    "proprietaria": false
+  },
+  {
+    "jogo": "asteroids.jar",
+    "nivel": "MEDIO",
+    "apis": 70,
+    "classes": 11,
+    "metodos": 75,
+    "threads": true,
+    "audio": false,
+    "proprietaria": false
+  },
+  {
+    "jogo": "breakout.jar",
+    "nivel": "COMPLEXO",
+    "apis": 60,
+    "classes": 10,
+    "metodos": 76,
+    "threads": true,
+    "audio": false,
+    "proprietaria": true
+  },
+  {
+    "jogo": "centipede.jar",
+    "nivel": "COMPLEXO",
+    "apis": 63,
+    "classes": 12,
+    "metodos": 107,
+    "threads": true,
+    "audio": false,
+    "proprietaria": true
+  },
+  {
+    "jogo": "funtetris.jar",
+    "nivel": "SIMPLES",
+    "apis": 36,
+    "classes": 4,
+    "metodos": 34,
+    "threads": false,
+    "audio": false,
+    "proprietaria": false
+  }
+]

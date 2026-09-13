@@ -1,0 +1,43 @@
+{
+  "javax/microedition/lcdui/Graphics.setColor": "j2me_gfx_set_color",
+  "javax/microedition/lcdui/Graphics.fillRect": "j2me_gfx_fill_rect",
+  "javax/microedition/lcdui/Graphics.drawString": "j2me_gfx_draw_string",
+  "javax/microedition/lcdui/Graphics.drawImage": "j2me_gfx_draw_image",
+  "javax/microedition/lcdui/Graphics.setClip": "j2me_gfx_set_clip",
+  "javax/microedition/lcdui/Graphics.setFont": "j2me_gfx_set_font",
+  "javax/microedition/lcdui/Image.createImage": "j2me_image_create",
+  "javax/microedition/lcdui/Image.getGraphics": "j2me_image_get_graphics",
+
+  "javax/microedition/lcdui/Canvas.<init>": "j2me_canvas_init",
+  "javax/microedition/lcdui/Canvas.getWidth": "j2me_canvas_w",
+  "javax/microedition/lcdui/Canvas.getHeight": "j2me_canvas_h",
+  "javax/microedition/lcdui/Canvas.repaint": "j2me_canvas_repaint",
+  "javax/microedition/lcdui/Canvas.getGameAction": "j2me_canvas_gameaction",
+
+  "javax/microedition/lcdui/Display.getDisplay": "j2me_display_get",
+  "javax/microedition/lcdui/Display.setCurrent": "j2me_display_set_current",
+
+  "javax/microedition/lcdui/Form.<init>": "j2me_form_init",
+  "javax/microedition/lcdui/Form.append": "j2me_form_append",
+  "javax/microedition/lcdui/Displayable.addCommand": "j2me_displayable_add_command",
+  "javax/microedition/lcdui/Displayable.setCommandListener": "j2me_displayable_set_listener",
+  "javax/microedition/lcdui/Command.<init>": "j2me_command_init",
+  "javax/microedition/lcdui/TextField.<init>": "j2me_textfield_init",
+  "javax/microedition/lcdui/TextField.getString": "j2me_textfield_get_string",
+  "javax/microedition/lcdui/Font.getFont": "j2me_font_get",
+
+  "javax/microedition/midlet/MIDlet.<init>": "j2me_midlet_init",
+  "javax/microedition/midlet/MIDlet.notifyDestroyed": "j2me_midlet_quit",
+
+  "java/lang/Integer.<init>": "j2me_int_new",
+  "java/lang/Integer.toString": "j2me_int_to_string",
+  "java/lang/Integer.parseInt": "j2me_int_parse",
+  "java/lang/Object.<init>": "j2me_noop",
+  "java/lang/System.currentTimeMillis": "j2me_time_ms",
+  "java/util/Random.<init>": "j2me_random_init",
+  "java/util/Random.nextInt": "j2me_random_next",
+  "java/util/Timer.<init>": "j2me_timer_init",
+  "java/util/Timer.schedule": "j2me_timer_schedule",
+  "java/util/Timer.cancel": "j2me_timer_cancel",
+  "java/util/TimerTask.<init>": "j2me_timertask_init"
+}
