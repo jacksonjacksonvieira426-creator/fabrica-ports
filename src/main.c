@@ -77,13 +77,13 @@ static int px = 200, py = 150;
 static int cam_x = 0, cam_y = 0;
 static int direcao = 1;
 static int frame_anim = 0, frame_time = 0;
-static int score = 0, hp = 100;
+static int score = 0, hp = 100, cooldown_dano = 0;
 
 // Inimigos
 typedef struct { int x, y, hp, vivo; } Enemy;
 #define MAX_E 8
 static Enemy inimigos[MAX_E];
-static int n_inimigos = 4;
+static int n_inimigos = 3;
 
 // Tiros
 typedef struct { int x, y, dx, dy, vivo, tempo; } Tiro;
@@ -92,8 +92,8 @@ static Tiro tiros[MAX_T];
 
 static void spawn(void) {
     for (int i = 0; i < n_inimigos; i++) {
-        inimigos[i].x = 100 + i * 60;
-        inimigos[i].y = 100 + (i % 2) * 80;
+        inimigos[i].x = 300 + i * 80;
+        inimigos[i].y = 200 + (i % 2) * 80;
         inimigos[i].hp = 20;
         inimigos[i].vivo = 1;
     }
@@ -158,7 +158,12 @@ static void update_inimigos(void) {
             else if (dy < 0 && livre(inimigos[i].x, inimigos[i].y - 1)) inimigos[i].y--;
         }
         if (inimigos[i].x < px+16 && inimigos[i].x+16 > px &&
-            inimigos[i].y < py+16 && inimigos[i].y+16 > py) hp--;
+            inimigos[i].y < py+16 && inimigos[i].y+16 > py) {
+            if (cooldown_dano <= 0) {
+                hp -= 10;
+                cooldown_dano = 30;
+            }
+        }
     }
 }
 
@@ -198,6 +203,7 @@ int main(void) {
 
         if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%4; frame_time = 0; } }
 
+        if (cooldown_dano > 0) cooldown_dano--;
         update_tiros();
         update_inimigos();
 

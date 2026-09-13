@@ -23,3 +23,6 @@ void j2me_gfx_clear(unsigned int rgb);
 #define J2ME_SCREEN_H 272
 
 #endif
+
+// Acesso ao back buffer (para clip.c)
+unsigned int* j2me_gfx_backbuf(void);
