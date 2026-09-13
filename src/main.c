@@ -308,13 +308,34 @@ int main(void) {
             const char* txt = MISSOES[missao_atual].briefing;
             char linha[64];
             int li = 0, cx = 30, cy = 80;
-            for (int i = 0; txt[i] && li < 60; i++) {
-                linha[li++] = txt[i];
-                if (li >= 55 || txt[i+1] == 0) {
-                    linha[li] = 0;
-                    j2me_font_draw(linha, cx, cy);
-                    cy += 12;
-                    li = 0;
+            int ultimo_espaco = -1;
+            for (int i = 0; txt[i] || li > 0; i++) {
+                char ch = txt[i];
+                if (ch == 0) {
+                    if (li > 0) { linha[li] = 0; j2me_font_draw(linha, cx, cy); }
+                    break;
+                }
+                if (ch == ' ') ultimo_espaco = li;
+                linha[li++] = ch;
+                if (li >= 50) {
+                    if (ultimo_espaco > 0) {
+                        // Volta pro ultimo espaco
+                        int guardar = li - ultimo_espaco - 1;
+                        linha[ultimo_espaco] = 0;
+                        j2me_font_draw(linha, cx, cy);
+                        cy += 12;
+                        // Move o resto pra frente
+                        for (int k = 0; k < guardar; k++)
+                            linha[k] = linha[ultimo_espaco + 1 + k];
+                        li = guardar;
+                        ultimo_espaco = -1;
+                    } else {
+                        linha[li] = 0;
+                        j2me_font_draw(linha, cx, cy);
+                        cy += 12;
+                        li = 0;
+                        ultimo_espaco = -1;
+                    }
                 }
             }
 
