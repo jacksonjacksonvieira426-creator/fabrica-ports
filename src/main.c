@@ -508,6 +508,7 @@ int main(void) {
             if (!explos[i].vivo) continue;
             explos[i].tempo--;
             explos[i].frame = (24 - explos[i].tempo) / 3;
+            if (explos[i].frame > 7) explos[i].frame = 7;
             if (explos[i].tempo <= 0) explos[i].vivo = 0;
         }
 
@@ -546,15 +547,15 @@ int main(void) {
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
         }
 
-        // Explosoes
+        // Explosoes - frames de 32x32 (grade 4x2 = 8 frames)
         for (int i = 0; i < MAX_X; i++) {
             if (!explos[i].vivo) continue;
             int f = explos[i].frame;
-            if (f > 31) f = 31;
-            int col_b = f % 8;
-            int lin_b = f / 8;
-            j2me_image_draw_region(s_bang, col_b*16, lin_b*16, 16, 16, TRANS_NONE,
-                explos[i].x - cam_x, explos[i].y - cam_y, TOP|LEFT);
+            if (f > 7) f = 7;
+            int col_b = f % 4;
+            int lin_b = f / 4;
+            j2me_image_draw_region(s_bang, col_b*32, lin_b*32, 32, 32, TRANS_NONE,
+                explos[i].x - cam_x - 8, explos[i].y - cam_y - 8, TOP|LEFT);
         }
 
         // Player - LINHA = direcao, COLUNA = frame de caminhada
