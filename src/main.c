@@ -10,7 +10,7 @@
 #include "cod_special.h"
 #include "cod_bang.h"
 
-PSP_MODULE_INFO("sprites_test", 0, 1, 0);
+PSP_MODULE_INFO("inspetor", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
 static J2MEImage* img_from(const unsigned int* src, int w, int h) {
@@ -19,49 +19,12 @@ static J2MEImage* img_from(const unsigned int* src, int w, int h) {
     return img;
 }
 
-static void desenha_num(int n, int x, int y, unsigned int cor) {
+static void desenha_borda(int x, int y, int w, int h, unsigned int cor) {
     j2me_gfx_set_color(cor);
-    char b[8];
-    int i = 0;
-    if (!n) b[i++] = '0';
-    else { char t[8]; int k = 0;
-        while (n>0) { t[k++] = '0'+n%10; n/=10; }
-        while (k>0) b[i++] = t[--k];
-    }
-    b[i] = 0;
-    j2me_font_draw(b, x, y);
-}
-
-// Desenha uma folha de sprites com grid e numeros
-static void desenha_folha(J2MEImage* img, int fw, int fh, int start_x, int start_y,
-                          const char* titulo, int destacar) {
-    j2me_gfx_set_color(0xFFFF00);
-    j2me_font_draw(titulo, start_x, start_y - 12);
-
-    int cols = img->w / fw;
-    int rows = img->h / fh;
-    int gap = 4;
-
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            int px = start_x + x * (fw + gap + 18);
-            int py = start_y + y * (fh + gap + 4);
-
-            // Borda
-            int idx = y * cols + x;
-            j2me_gfx_set_color(idx == destacar ? 0xFF0000 : 0x404040);
-            j2me_gfx_fill_rect(px - 1, py - 1, fw + 2, fh + 2);
-            j2me_gfx_set_color(0x101020);
-            j2me_gfx_fill_rect(px, py, fw, fh);
-
-            // Sprite
-            j2me_image_draw_region(img, x*fw, y*fh, fw, fh, TRANS_NONE,
-                px, py, TOP|LEFT);
-
-            // Numero
-            desenha_num(idx, px + fw + 2, py + 2, 0xFFFFFF);
-        }
-    }
+    j2me_gfx_fill_rect(x - 1, y - 1, w + 2, 1);
+    j2me_gfx_fill_rect(x - 1, y + h, w + 2, 1);
+    j2me_gfx_fill_rect(x - 1, y - 1, 1, h + 2);
+    j2me_gfx_fill_rect(x + w, y - 1, 1, h + 2);
 }
 
 int main(void) {
@@ -74,56 +37,49 @@ int main(void) {
     J2MEImage* s_special = img_from(cod_special_pixels, COD_SPECIAL_W, COD_SPECIAL_H);
     J2MEImage* s_bang    = img_from(cod_bang_pixels,    COD_BANG_W,    COD_BANG_H);
 
-    int tela = 0;
-    #define N_TELAS 3
-    int destaque = 0;
-
     while (1) {
         j2me_input_update();
         if (j2me_input_should_quit()) break;
 
-        if (j2me_input_is_pressed(J2ME_FIRE)) {
-            tela = (tela + 1) % N_TELAS;
-            destaque = 0;
-        }
-        if (j2me_input_is_pressed(J2ME_RIGHT)) destaque++;
-        if (j2me_input_is_pressed(J2ME_LEFT) && destaque > 0) destaque--;
-        if (destaque < 0) destaque = 0;
-
         j2me_gfx_begin_frame();
         j2me_gfx_clear(0x101020);
 
-        j2me_gfx_set_color(0xFFFFFF);
-        j2me_font_draw("VISUALIZADOR DE SPRITES - X: proxima tela | <- ->: muda destaque", 5, 5);
+        j2me_gfx_set_color(0xFFFF00);
+        j2me_font_draw("PNGs ORIGINAIS DO JAR (sem cortar)", 10, 5);
 
-        if (tela == 0) {
-            // Tela 0: player (24) + axis (24)
-            j2me_gfx_set_color(0x00FF00);
-            j2me_font_draw("PLAYER.PNG (48x128) - 3 col x 8 lin = 24 sprites 16x16", 5, 22);
-            desenha_folha(s_player, 16, 16, 5, 40, "", destaque);
+        // GROUND (112x64) - canto superior esquerdo
+        j2me_gfx_set_color(0x00FF00);
+        j2me_font_draw("ground.png (112x64)", 10, 22);
+        desenha_borda(10, 35, 112, 64, 0x404040);
+        j2me_image_blit(s_ground, 10, 35);
 
-            j2me_gfx_set_color(0xFF8080);
-            j2me_font_draw("AXIS.PNG (48x128) - 24 sprites 16x16", 260, 22);
-            desenha_folha(s_axis, 16, 16, 260, 40, "", -1);
-        }
-        else if (tela == 1) {
-            // Tela 1: ground (28)
-            j2me_gfx_set_color(0x00FFFF);
-            j2me_font_draw("GROUND.PNG (112x64) - 7 col x 4 lin = 28 tiles 16x16", 5, 22);
-            desenha_folha(s_ground, 16, 16, 5, 40, "", destaque);
-        }
-        else if (tela == 2) {
-            // Tela 2: special (27) + bang (testando 32x32 vs 16x16)
-            j2me_gfx_set_color(0xFFFF00);
-            j2me_font_draw("SPECIAL.PNG (144x48) - 27 sprites 16x16", 5, 22);
-            desenha_folha(s_special, 16, 16, 5, 40, "", destaque);
-        }
+        // PLAYER (48x128) - ao lado
+        j2me_gfx_set_color(0x00FFFF);
+        j2me_font_draw("player.png (48x128)", 140, 22);
+        desenha_borda(140, 35, 48, 128, 0x404040);
+        j2me_image_blit(s_player, 140, 35);
 
-        // HUD de destaque
-        char b[32];
-        j2me_gfx_set_color(0xFF4040);
-        j2me_font_draw("DESTAQUE:", 5, 255);
-        desenha_num(destaque, 80, 255, 0xFFFFFF);
+        // AXIS (48x128)
+        j2me_gfx_set_color(0xFF8080);
+        j2me_font_draw("axis.png (48x128)", 200, 22);
+        desenha_borda(200, 35, 48, 128, 0x404040);
+        j2me_image_blit(s_axis, 200, 35);
+
+        // SPECIAL (144x48)
+        j2me_gfx_set_color(0xFF00FF);
+        j2me_font_draw("special.png (144x48)", 260, 22);
+        desenha_borda(260, 35, 144, 48, 0x404040);
+        j2me_image_blit(s_special, 260, 35);
+
+        // BANG (128x64)
+        j2me_gfx_set_color(0xFFFF80);
+        j2me_font_draw("bang.png (128x64)", 260, 100);
+        desenha_borda(260, 113, 128, 64, 0x404040);
+        j2me_image_blit(s_bang, 260, 113);
+
+        j2me_gfx_set_color(0x808080);
+        j2me_font_draw("Cada PNG desenhado 1:1, sem corte, sem escala.", 10, 250);
+        j2me_font_draw("START sai", 10, 262);
 
         j2me_gfx_flip();
     }
