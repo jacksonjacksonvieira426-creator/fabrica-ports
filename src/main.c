@@ -1,10 +1,12 @@
 // Mobile Street Fighter - port pro PSP
 #include <pspkernel.h>
 #include <string.h>
+#include <stdlib.h>
 #include "j2me_gfx.h"
 #include "j2me_font.h"
 #include "j2me_input.h"
 #include "j2me_image.h"
+#include "j2me_clip.h"
 #include "j2me_runtime.h"
 #include "msf_sprite.h"
 #include "msf_back.h"
