@@ -1,305 +1,129 @@
-// CoD PSP - Versao completa com 9 missoes
+// Mobile Street Fighter - port pro PSP
 #include <pspkernel.h>
 #include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "j2me_gfx.h"
 #include "j2me_font.h"
 #include "j2me_input.h"
 #include "j2me_image.h"
-#include "j2me_clip.h"
 #include "j2me_runtime.h"
-#include "j2me_rms.h"
-#include "cod_player.h"
-#include "cod_axis.h"
-#include "cod_ground.h"
-#include "cod_special.h"
-#include "cod_bang.h"
-#include "missoes.h"
+#include "msf_sprite.h"
+#include "msf_back.h"
 
-PSP_MODULE_INFO("cod_psp", 0, 1, 0);
+PSP_MODULE_INFO("msf_psp", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
-#define TILE    16
-#define MAP_W   40
-#define MAP_H   30
-#define VIEW_W  480
-#define VIEW_H  272
-#define MAX_E   20
-#define MAX_T   32
+#define SCR_W 480
+#define SCR_H 272
+#define CHAO_Y 220
 
-#define T_GRAMA  0
-#define T_TERRA  1
-#define T_AGUA   10
-#define T_PEDRA  16
-#define T_GRAMA2 26
+// Estados do lutador
+#define ST_PARADO   0
+#define ST_ANDANDO  1
+#define ST_SOCO     2
+#define ST_CHUTE    3
+#define ST_PULO     4
+#define ST_DANO     5
+#define ST_VITORIA  6
+
+// Sprites (coluna, linha) na sprite sheet
+// Assumindo: 4 cols x 5 rows, sprites ~25x20
+#define SPR_W 25
+#define SPR_H 20
 
 // Estados do jogo
-typedef enum {
-    ST_BRIEFING,
-    ST_JOGANDO,
-    ST_VITORIA,
-    ST_DERROTA,
-    ST_FIM
-} Estado;
+#define J_INTRO     0
+#define J_LUTA      1
+#define J_VITORIA   2
+#define J_DERROTA   3
 
-// Mapa
-static unsigned char mapa[MAP_H][MAP_W];
-static int flag_x, flag_y;  // objetivo
-
-// Player
-static int px, py, hp, muni;
-static int direcao, frame_anim, frame_time;
-static int score;
-static int cooldown_dano;
-
-// Inimigos
-typedef struct { int x, y, hp, vivo; } Enemy;
-static Enemy inimigos[MAX_E];
-static int n_inimigos;
-
-// Tiros
-typedef struct { int x, y, dx, dy, vivo, tempo; } Tiro;
-static Tiro tiros[MAX_T];
-
-typedef struct { int x, y, frame, tempo, vivo; } Explosao;
-#define MAX_X 16
-static Explosao explos[MAX_X];
-static int inimigo_tiro_cd[MAX_E];
-static int muzzle_tempo = 0;
-
-// Estado global
-static Estado estado = ST_BRIEFING;
-static int missao_atual = 0;
-static int tempo_estado = 0;
-static int mortos_total = 0;
-
-// RS para high scores
-static RecordStore* rs = 0;
-
-// PRNG simples com seed
-static unsigned int prng_state;
-static void prng_seed(unsigned int s) { prng_state = s ? s : 1; }
-static int prng_next(int max) {
-    prng_state = prng_state * 1103515245 + 12345;
-    return (int)((prng_state >> 16) % (unsigned int)max);
-}
-
-// ===== Geracao de mapa procedural =====
-static void gerar_mapa(unsigned int seed, int dificuldade) {
-    prng_seed(seed);
-
-    // Base: grama
-    for (int y = 0; y < MAP_H; y++)
-        for (int x = 0; x < MAP_W; x++)
-            mapa[y][x] = T_GRAMA;
-
-    // Borda de pedra
-    for (int x = 0; x < MAP_W; x++) { mapa[0][x] = T_PEDRA; mapa[MAP_H-1][x] = T_PEDRA; }
-    for (int y = 0; y < MAP_H; y++) { mapa[y][0] = T_PEDRA; mapa[y][MAP_W-1] = T_PEDRA; }
-
-    // Rio vertical (posicao aleatoria)
-    int rio_x = 8 + prng_next(24);
-    for (int y = 1; y < MAP_H-1; y++) {
-        mapa[y][rio_x] = T_AGUA;
-        mapa[y][rio_x+1] = T_AGUA;
-    }
-    // Ponte na metade
-    int ponte_y = 5 + prng_next(MAP_H - 12);
-    mapa[ponte_y][rio_x] = T_TERRA;
-    mapa[ponte_y][rio_x+1] = T_TERRA;
-    mapa[ponte_y+1][rio_x] = T_TERRA;
-    mapa[ponte_y+1][rio_x+1] = T_TERRA;
-
-    // Estradas horizontais
-    for (int y = 4; y < MAP_H; y += 6) {
-        for (int x = 1; x < MAP_W-1; x++) {
-            if (mapa[y][x] != T_AGUA) mapa[y][x] = T_TERRA;
-            if (y+1 < MAP_H-1 && mapa[y+1][x] != T_AGUA) mapa[y+1][x] = T_TERRA;
-        }
-    }
-
-    // Blocos de predios (3-6)
-    int n_predios = 4 + dificuldade / 2;
-    for (int i = 0; i < n_predios; i++) {
-        int bx = 3 + prng_next(MAP_W - 10);
-        int by = 3 + prng_next(MAP_H - 10);
-        int bw = 2 + prng_next(4);
-        int bh = 2 + prng_next(3);
-        for (int y = by; y < by+bh && y < MAP_H-1; y++)
-            for (int x = bx; x < bx+bw && x < MAP_W-1; x++)
-                if (mapa[y][x] == T_GRAMA) mapa[y][x] = T_PEDRA;
-    }
-
-    // Detalhes de grama clara
-    for (int i = 0; i < 80; i++) {
-        int x = 1 + prng_next(MAP_W - 2);
-        int y = 1 + prng_next(MAP_H - 2);
-        if (mapa[y][x] == T_GRAMA) mapa[y][x] = T_GRAMA2;
-    }
-
-    // Spawn do player (canto esquerdo, embaixo)
-    px = 3 * TILE;
-    py = (MAP_H - 4) * TILE;
-    // Garante que nao ta em parede
-    if (mapa[py/TILE][px/TILE] == T_PEDRA || mapa[py/TILE][px/TILE] == T_AGUA) {
-        for (int x = 1; x < 10; x++) {
-            if (mapa[(MAP_H-4)][x] == T_GRAMA) { px = x * TILE; break; }
-        }
-    }
-
-    // Bandeira vermelha (canto direito, em cima)
-    flag_x = (MAP_W - 4) * TILE;
-    flag_y = 3 * TILE;
-    for (int y = 1; y < 8; y++) {
-        for (int x = MAP_W - 6; x < MAP_W - 2; x++) {
-            if (mapa[y][x] == T_GRAMA || mapa[y][x] == T_GRAMA2) {
-                flag_x = x * TILE;
-                flag_y = y * TILE;
-                y = 8; break;
-            }
-        }
-    }
-}
-
-static void spawn_inimigos(int n) {
-    n_inimigos = n;
-    for (int i = 0; i < n; i++) {
-        int tx, ty;
-        int tent = 0;
-        do {
-            tx = 5 + prng_next(MAP_W - 10);
-            ty = 3 + prng_next(MAP_H - 6);
-            tent++;
-        } while (tent < 50 && (mapa[ty][tx] == T_PEDRA || mapa[ty][tx] == T_AGUA ||
-                                (tx*TILE > px - 150 && tx*TILE < px + 150 &&
-                                 ty*TILE > py - 150 && ty*TILE < py + 150)));
-        inimigos[i].x = tx * TILE;
-        inimigos[i].y = ty * TILE;
-        inimigos[i].hp = 20 + missao_atual * 5;
-        inimigo_tiro_cd[i] = 60 + i * 20;
-        inimigos[i].vivo = 1;
-    }
-}
-
-// ===== Helpers =====
 static J2MEImage* img_from(const unsigned int* src, int w, int h) {
     J2MEImage* img = j2me_image_create(w, h);
-    if (!img) return NULL;
     memcpy(img->pixels, src, w * h * sizeof(unsigned int));
     return img;
 }
 
-static int tile_solido(int x, int y) {
-    int tx = x / TILE, ty = y / TILE;
-    if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return 1;
-    unsigned char t = mapa[ty][tx];
-    return (t == T_AGUA || t == T_PEDRA);
+// Jogador (Ryu) - esquerda
+static int p1_x = 100, p1_y = CHAO_Y;
+static int p1_hp = 100;
+static int p1_estado = ST_PARADO;
+static int p1_frame_time = 0;
+static int p1_face = 1;  // 1 = direita
+
+// Inimigo (Lee) - direita
+static int p2_x = 320, p2_y = CHAO_Y;
+static int p2_hp = 100;
+static int p2_estado = ST_PARADO;
+static int p2_frame_time = 0;
+static int p2_face = -1;  // -1 = esquerda
+
+static int estado = J_INTRO;
+static int tempo_estado = 0;
+static int timer_luta = 99;
+static int timer_tick = 0;
+
+static int int_rand(int max) { return j2me_random_next(max); }
+
+// Aplica dano (com cooldown)
+static int cooldown_hit = 0;
+
+static void p1_atacar(int tipo) {
+    if (p1_estado != ST_PARADO && p1_estado != ST_ANDANDO) return;
+    p1_estado = tipo;
+    p1_frame_time = 0;
 }
 
-static int livre(int x, int y) {
-    return !tile_solido(x, y) && !tile_solido(x+11, y) &&
-           !tile_solido(x, y+15) && !tile_solido(x+11, y+15);
+static void p2_atacar(int tipo) {
+    if (p2_estado != ST_PARADO && p2_estado != ST_ANDANDO) return;
+    p2_estado = tipo;
+    p2_frame_time = 0;
 }
 
-static void atirar(void) {
-    if (muni <= 0) return;
-    for (int i = 0; i < MAX_T; i++) {
-        if (tiros[i].vivo) continue;
-        tiros[i].x = px + 6; tiros[i].y = py + 8;
-        tiros[i].dx = tiros[i].dy = 0;
-        if (direcao == 0) tiros[i].dy = -8;
-        if (direcao == 1) tiros[i].dy =  8;
-        if (direcao == 2) tiros[i].dx = -8;
-        if (direcao == 3) tiros[i].dx =  8;
-        tiros[i].vivo = 1; tiros[i].tempo = 60;
-        muni--;
-        return;
-    }
+static void reset_luta(void) {
+    p1_x = 100; p1_y = CHAO_Y; p1_hp = 100; p1_estado = ST_PARADO;
+    p2_x = 320; p2_y = CHAO_Y; p2_hp = 100; p2_estado = ST_PARADO;
+    timer_luta = 99; timer_tick = 0; cooldown_hit = 0;
+    estado = J_LUTA; tempo_estado = 0;
+}
+
+static int hitbox_ativo(int estado_lut) {
+    return (estado_lut == ST_SOCO || estado_lut == ST_CHUTE);
+}
+
+static int calcular_dano(int estado_lut) {
+    if (estado_lut == ST_SOCO) return 5;
+    if (estado_lut == ST_CHUTE) return 8;
+    return 0;
+}
+
+// Retorna 1 se A acerta B
+static int verificar_acerto(int ax, int aface, int aestado, int bx) {
+    if (!hitbox_ativo(aestado)) return 0;
+    // Alcance do ataque
+    int alcance = (aestado == ST_SOCO) ? 40 : 50;
+    int ataque_x = ax + (aface > 0 ? 20 : -alcance);
+    // Se o ataque tá perto do B
+    return (ataque_x < bx + 30 && ataque_x + alcance > bx - 5);
 }
 
 static void int_str(int n, char* b) {
     int i = 0;
     if (!n) b[i++] = '0';
-    else { char t[16]; int k = 0;
-        while (n > 0) { t[k++] = '0' + n%10; n /= 10; }
-        while (k > 0) b[i++] = t[--k];
+    else { char t[8]; int k = 0;
+        while (n>0) { t[k++]='0'+n%10; n/=10; }
+        while (k>0) b[i++]=t[--k];
     }
     b[i] = 0;
 }
 
-// ===== Inicio de missao =====
-static void iniciar_missao(int m) {
-    missao_atual = m;
-    gerar_mapa(MISSOES[m].seed, MISSOES[m].dificuldade);
-    spawn_inimigos(MISSOES[m].n_inimigos);
-    memset(tiros, 0, sizeof(tiros));
-    memset(explos, 0, sizeof(explos));
-    muzzle_tempo = 0;
-
-    hp = 100;
-    muni = 30 + missao_atual * 5;
-    score = 0;
-    direcao = 1;
-    frame_anim = 0;
-    frame_time = 0;
-    cooldown_dano = 0;
-
-    estado = ST_BRIEFING;
-    tempo_estado = 0;
-}
-
-// ===== Desenho =====
-static void desenhar_mundo(J2MEImage* s_ground) {
-    int cam_x = px - VIEW_W/2;
-    int cam_y = py - VIEW_H/2;
-    if (cam_x < 0) cam_x = 0;
-    if (cam_y < 0) cam_y = 0;
-    if (cam_x > MAP_W*TILE - VIEW_W) cam_x = MAP_W*TILE - VIEW_W;
-    if (cam_y > MAP_H*TILE - VIEW_H) cam_y = MAP_H*TILE - VIEW_H;
-
-    int t0x = cam_x/TILE, t0y = cam_y/TILE;
-    int t1x = t0x + VIEW_W/TILE + 2, t1y = t0y + VIEW_H/TILE + 2;
-    if (t0x < 0) t0x = 0; if (t0y < 0) t0y = 0;
-    if (t1x > MAP_W) t1x = MAP_W; if (t1y > MAP_H) t1y = MAP_H;
-
-    for (int y = t0y; y < t1y; y++)
-        for (int x = t0x; x < t1x; x++) {
-            int sx = x*TILE - cam_x, sy = y*TILE - cam_y;
-            int t = mapa[y][x], col = t % 7, row = t / 7;
-            j2me_image_draw_region(s_ground, col*16, row*16, 16, 16,
-                TRANS_NONE, sx, sy, TOP|LEFT);
-        }
-    return;
-}
-
-static int get_cam_x(void) {
-    int c = px - VIEW_W/2;
-    if (c < 0) c = 0;
-    if (c > MAP_W*TILE - VIEW_W) c = MAP_W*TILE - VIEW_W;
-    return c;
-}
-static int get_cam_y(void) {
-    int c = py - VIEW_H/2;
-    if (c < 0) c = 0;
-    if (c > MAP_H*TILE - VIEW_H) c = MAP_H*TILE - VIEW_H;
-    return c;
-}
-
-// ===== Main =====
 int main(void) {
     j2me_gfx_init();
     j2me_input_init();
     j2me_random_init();
 
-    J2MEImage* s_player = img_from(cod_player_pixels, COD_PLAYER_W, COD_PLAYER_H);
-    J2MEImage* s_axis   = img_from(cod_axis_pixels,   COD_AXIS_W,   COD_AXIS_H);
-    J2MEImage* s_ground = img_from(cod_ground_pixels, COD_GROUND_W, COD_GROUND_H);
-    J2MEImage* s_special = img_from(cod_special_pixels, COD_SPECIAL_W, COD_SPECIAL_H);
-    J2MEImage* s_bang = img_from(cod_bang_pixels, COD_BANG_W, COD_BANG_H);
+    J2MEImage* sprite = img_from(msf_sprite_pixels, MSF_SPRITE_W, MSF_SPRITE_H);
+    J2MEImage* fundo  = img_from(msf_back_pixels,   MSF_BACK_W,   MSF_BACK_H);
 
-    rs = j2me_rms_open("cod_save", 1);
-    iniciar_missao(0);
+    estado = J_INTRO;
 
     while (1) {
         j2me_input_update();
@@ -307,398 +131,218 @@ int main(void) {
 
         tempo_estado++;
 
-        // ===== ESTADO: BRIEFING =====
-        if (estado == ST_BRIEFING) {
+        // ===== INTRO =====
+        if (estado == J_INTRO) {
             j2me_gfx_begin_frame();
-            j2me_gfx_clear(0x101820);
+            j2me_gfx_clear(0x000000);
 
+            j2me_gfx_set_color(0xFF0000);
+            j2me_font_draw("MOBILE", 180, 60);
             j2me_gfx_set_color(0xFFFF00);
-            j2me_font_draw(MISSOES[missao_atual].titulo, 30, 40);
-
+            j2me_font_draw("STREET FIGHTER", 150, 80);
             j2me_gfx_set_color(0xFFFFFF);
-            // Quebra briefing em linhas de ~50 chars
-            const char* txt = MISSOES[missao_atual].briefing;
-            char linha[64];
-            int li = 0, cx = 30, cy = 80;
-            int ultimo_espaco = -1;
-            for (int i = 0; txt[i] || li > 0; i++) {
-                char ch = txt[i];
-                if (ch == 0) {
-                    if (li > 0) { linha[li] = 0; j2me_font_draw(linha, cx, cy); }
-                    break;
-                }
-                if (ch == ' ') ultimo_espaco = li;
-                linha[li++] = ch;
-                if (li >= 50) {
-                    if (ultimo_espaco > 0) {
-                        // Volta pro ultimo espaco
-                        int guardar = li - ultimo_espaco - 1;
-                        linha[ultimo_espaco] = 0;
-                        j2me_font_draw(linha, cx, cy);
-                        cy += 12;
-                        // Move o resto pra frente
-                        for (int k = 0; k < guardar; k++)
-                            linha[k] = linha[ultimo_espaco + 1 + k];
-                        li = guardar;
-                        ultimo_espaco = -1;
-                    } else {
-                        linha[li] = 0;
-                        j2me_font_draw(linha, cx, cy);
-                        cy += 12;
-                        li = 0;
-                        ultimo_espaco = -1;
-                    }
-                }
-            }
+            j2me_font_draw("PSP EDITION", 180, 100);
 
             j2me_gfx_set_color(0x00FF00);
-            j2me_font_draw("X - INICIAR MISSAO", 30, 230);
+            if ((tempo_estado / 20) % 2 == 0)
+                j2me_font_draw("X - LUTAR!", 180, 180);
+
             j2me_gfx_set_color(0x808080);
-            j2me_font_draw("START - sair", 250, 230);
+            j2me_font_draw("D-Pad: mover  |  X: soco  |  O: chute", 80, 230);
+            j2me_font_draw("START: sair", 180, 248);
 
             j2me_gfx_flip();
-            if (j2me_input_is_pressed(J2ME_FIRE)) {
-                estado = ST_JOGANDO;
-                tempo_estado = 0;
-            }
+
+            if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
             continue;
         }
 
-        // ===== ESTADO: VITORIA =====
-        if (estado == ST_VITORIA) {
+        // ===== VITORIA =====
+        if (estado == J_VITORIA) {
             j2me_gfx_begin_frame();
             j2me_gfx_clear(0x001800);
+
             j2me_gfx_set_color(0x00FF00);
-            j2me_font_draw("MISSAO CUMPRIDA!", 140, 100);
-            char b[16];
+            j2me_font_draw("VITORIA!", 180, 100);
             j2me_gfx_set_color(0xFFFFFF);
-            j2me_font_draw("Inimigos:", 150, 140);
-            int_str(mortos_total, b);
-            j2me_font_draw(b, 260, 140);
+            j2me_font_draw("X - lutar de novo", 150, 160);
+            j2me_gfx_set_color(0x808080);
+            j2me_font_draw("START - sair", 180, 190);
 
-            if (missao_atual < 8) {
-                j2me_gfx_set_color(0xFFFF00);
-                j2me_font_draw("X - proxima missao", 130, 200);
-            } else {
-                j2me_gfx_set_color(0x00FFFF);
-                j2me_font_draw("VOCE ZEROU O JOGO!", 120, 200);
-            }
             j2me_gfx_flip();
-
-            if (j2me_input_is_pressed(J2ME_FIRE)) {
-                mortos_total = 0;
-                if (missao_atual < 8) iniciar_missao(missao_atual + 1);
-                else estado = ST_FIM;
-            }
+            if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
             continue;
         }
 
-        // ===== ESTADO: DERROTA =====
-        if (estado == ST_DERROTA) {
+        // ===== DERROTA =====
+        if (estado == J_DERROTA) {
             j2me_gfx_begin_frame();
             j2me_gfx_clear(0x180000);
+
             j2me_gfx_set_color(0xFF0000);
-            j2me_font_draw("VOCE MORREU", 170, 100);
+            j2me_font_draw("DERROTA...", 180, 100);
             j2me_gfx_set_color(0xFFFFFF);
-            j2me_font_draw("X - tentar de novo", 140, 150);
+            j2me_font_draw("X - tentar de novo", 150, 160);
             j2me_gfx_set_color(0x808080);
-            j2me_font_draw("START - sair", 170, 180);
+            j2me_font_draw("START - sair", 180, 190);
+
             j2me_gfx_flip();
-
-            if (j2me_input_is_pressed(J2ME_FIRE)) iniciar_missao(missao_atual);
+            if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
             continue;
         }
 
-        // ===== ESTADO: FIM =====
-        if (estado == ST_FIM) {
-            j2me_gfx_begin_frame();
-            j2me_gfx_clear(0x000018);
-            j2me_gfx_set_color(0x00FFFF);
-            j2me_font_draw("OBRIGADO POR JOGAR!", 120, 100);
-            j2me_gfx_set_color(0xFFFF00);
-            j2me_font_draw("Call of Duty PSP", 140, 130);
-            j2me_gfx_flip();
-            continue;
-        }
+        // ===== LUTA =====
+        int acoes = j2me_input_get_actions();
 
-        // ===== ESTADO: JOGANDO =====
-        int a = j2me_input_get_actions();
-        int moveu = 0;
-        if (a & J2ME_LEFT)  { direcao = 2; if (livre(px-2, py)) { px -= 2; moveu = 1; } }
-        if (a & J2ME_RIGHT) { direcao = 3; if (livre(px+2, py)) { px += 2; moveu = 1; } }
-        if (a & J2ME_UP)    { direcao = 0; if (livre(px, py-2)) { py -= 2; moveu = 1; } }
-        if (a & J2ME_DOWN)  { direcao = 1; if (livre(px, py+2)) { py += 2; moveu = 1; } }
-        if (j2me_input_is_pressed(J2ME_FIRE)) { atirar(); muzzle_tempo = 4; }
-
-        if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%3; frame_time = 0; } }
-
-        // Atualiza tiros
-        for (int i = 0; i < MAX_T; i++) {
-            if (!tiros[i].vivo) continue;
-            tiros[i].x += tiros[i].dx;
-            tiros[i].y += tiros[i].dy;
-            tiros[i].tempo--;
-            if (tiros[i].tempo <= 0 || tiros[i].x < 0 || tiros[i].x > MAP_W*TILE ||
-                tiros[i].y < 0 || tiros[i].y > MAP_H*TILE ||
-                tile_solido(tiros[i].x, tiros[i].y)) { tiros[i].vivo = 0; continue; }
-            // Tiro do inimigo acerta o player
-            if (tiros[i].vivo == 2) {
-                if (tiros[i].x > px && tiros[i].x < px + 16 &&
-                    tiros[i].y > py && tiros[i].y < py + 16) {
-                    if (cooldown_dano <= 0) {
-                        hp -= 15;
-                        cooldown_dano = 30;
-                    }
-                    tiros[i].vivo = 0;
-                    continue;
-                }
-                continue;  // tiro inimigo nao checa colisao com outros inimigos
+        // === Jogador ===
+        if (p1_estado == ST_PARADO || p1_estado == ST_ANDANDO) {
+            if (acoes & J2ME_LEFT) {
+                p1_x -= 2; p1_face = -1; p1_estado = ST_ANDANDO;
+            } else if (acoes & J2ME_RIGHT) {
+                p1_x += 2; p1_face = 1; p1_estado = ST_ANDANDO;
+            } else {
+                p1_estado = ST_PARADO;
             }
+            if (p1_x < 20) p1_x = 20;
+            if (p1_x > 350) p1_x = 350;
 
-            for (int j = 0; j < n_inimigos; j++) {
-                if (!inimigos[j].vivo) continue;
-                if (tiros[i].x > inimigos[j].x && tiros[i].x < inimigos[j].x + 16 &&
-                    tiros[i].y > inimigos[j].y && tiros[i].y < inimigos[j].y + 16) {
-                    inimigos[j].hp -= 10;
-                    if (inimigos[j].hp <= 0) {
-                        inimigos[j].vivo = 0;
-                        score += 100;
-                        mortos_total++;
-                        for (int k = 0; k < MAX_X; k++) {
-                            if (!explos[k].vivo) {
-                                explos[k].x = inimigos[j].x;
-                                explos[k].y = inimigos[j].y;
-                                explos[k].frame = 0;
-                                explos[k].tempo = 24;
-                                explos[k].vivo = 1;
-                                break;
-                            }
-                        }
-                    }
-                    tiros[i].vivo = 0;
-                    break;
-                }
+            if (j2me_input_is_pressed(J2ME_FIRE)) p1_atacar(ST_SOCO);
+            // O = chute (segundo botão)
+            if (j2me_input_is_pressed(J2ME_UP)) p1_atacar(ST_CHUTE);
+        } else {
+            // Em estado de ataque - não pode se mover
+            p1_frame_time++;
+            if (p1_frame_time > 20) {
+                p1_estado = ST_PARADO;
+                p1_frame_time = 0;
             }
         }
 
-        // Atualiza inimigos
-        if (cooldown_dano > 0) cooldown_dano--;
-        for (int i = 0; i < n_inimigos; i++) {
-            if (!inimigos[i].vivo) continue;
-            int dx = px - inimigos[i].x, dy = py - inimigos[i].y;
-            if (dx*dx + dy*dy < 40000) {
-                if (dx > 0 && livre(inimigos[i].x + 1, inimigos[i].y)) inimigos[i].x++;
-                else if (dx < 0 && livre(inimigos[i].x - 1, inimigos[i].y)) inimigos[i].x--;
-                if (dy > 0 && livre(inimigos[i].x, inimigos[i].y + 1)) inimigos[i].y++;
-                else if (dy < 0 && livre(inimigos[i].x, inimigos[i].y - 1)) inimigos[i].y--;
-            }
-            if (inimigos[i].x < px+16 && inimigos[i].x+16 > px &&
-                inimigos[i].y < py+16 && inimigos[i].y+16 > py) {
-                if (cooldown_dano <= 0) {
-                    hp -= 10;
-                    cooldown_dano = 30;
-                }
-            }
+        // === Inimigo (IA simples) ===
+        if (p2_estado == ST_PARADO || p2_estado == ST_ANDANDO) {
+            int dist = p1_x - p2_x;
+            p2_face = (dist > 0) ? 1 : -1;
 
-            // Tiro do inimigo (a cada X frames, se perto)
-            if (inimigo_tiro_cd[i] > 0) inimigo_tiro_cd[i]--;
-            if (inimigo_tiro_cd[i] <= 0 && dx*dx + dy*dy < 40000) {
-                for (int k = 0; k < MAX_T; k++) {
-                    if (tiros[k].vivo) continue;
-                    tiros[k].x = inimigos[i].x + 6;
-                    tiros[k].y = inimigos[i].y + 8;
-                    tiros[k].dx = 0; tiros[k].dy = 0;
-                    if (abs(dx) > abs(dy)) {
-                        tiros[k].dx = (dx > 0) ? 6 : -6;
-                    } else {
-                        tiros[k].dy = (dy > 0) ? 6 : -6;
-                    }
-                    tiros[k].vivo = 2;  // 2 = tiro inimigo
-                    tiros[k].tempo = 80;
-                    inimigo_tiro_cd[i] = 90 + (i * 15) % 60;
-                    break;
-                }
+            if (abs(dist) > 70) {
+                // Aproxima
+                p2_x += (dist > 0) ? 1 : -1;
+                p2_estado = ST_ANDANDO;
+            } else {
+                // Ataca
+                int r = int_rand(100);
+                if (r < 3) p2_atacar(ST_SOCO);
+                else if (r < 5) p2_atacar(ST_CHUTE);
+                else p2_estado = ST_PARADO;
+            }
+            if (p2_x < 20) p2_x = 20;
+            if (p2_x > 420) p2_x = 420;
+        } else {
+            p2_frame_time++;
+            if (p2_frame_time > 25) {
+                p2_estado = ST_PARADO;
+                p2_frame_time = 0;
             }
         }
 
-        // Verifica vitoria (chegou na bandeira)
-        if (px < flag_x + 32 && px + 16 > flag_x &&
-            py < flag_y + 32 && py + 16 > flag_y) {
-            estado = ST_VITORIA;
-            tempo_estado = 0;
-            continue;
+        // === Colisão de ataques ===
+        if (cooldown_hit > 0) cooldown_hit--;
+
+        if (cooldown_hit == 0) {
+            if (verificar_acerto(p1_x, p1_face, p1_estado, p2_x)) {
+                p2_hp -= calcular_dano(p1_estado);
+                cooldown_hit = 30;
+            }
+            if (verificar_acerto(p2_x, p2_face, p2_estado, p1_x)) {
+                p1_hp -= calcular_dano(p2_estado);
+                cooldown_hit = 30;
+            }
         }
 
-        // Verifica derrota
-        if (hp <= 0) {
-            estado = ST_DERROTA;
-            tempo_estado = 0;
-            continue;
+        // Timer
+        timer_tick++;
+        if (timer_tick >= 60) {
+            timer_tick = 0;
+            timer_luta--;
+            if (timer_luta <= 0) {
+                // Fim do tempo - quem tem mais vida ganha
+                if (p1_hp > p2_hp) estado = J_VITORIA;
+                else if (p2_hp > p1_hp) estado = J_DERROTA;
+                else estado = J_VITORIA;  // empate → vitória por padrão
+            }
         }
 
-        // Recarrega municao com o tempo (de graca)
-        if (tempo_estado % 120 == 0 && muni < 50) muni++;
-        if (muzzle_tempo > 0) muzzle_tempo--;
+        // Fim de jogo
+        if (p1_hp <= 0) { estado = J_DERROTA; continue; }
+        if (p2_hp <= 0) { estado = J_VITORIA; continue; }
 
-        for (int i = 0; i < MAX_X; i++) {
-            if (!explos[i].vivo) continue;
-            explos[i].tempo--;
-            explos[i].frame = (24 - explos[i].tempo) / 3;
-            if (explos[i].tempo <= 0) explos[i].vivo = 0;
-        }
-
-        // ===== DESENHO =====
-        int cam_x = get_cam_x();
-        int cam_y = get_cam_y();
-
+        // === Desenho ===
         j2me_gfx_begin_frame();
-        j2me_gfx_clear(0x000000);
-        desenhar_mundo(s_ground);
+        j2me_gfx_clear(0x402040);
 
-        // Bandeira (objetivo) - desenhada com fill_rect
-        {
-            int fxb = flag_x - cam_x;
-            int fyb = flag_y - cam_y;
-            j2me_gfx_set_color(0x604020);
-            j2me_gfx_fill_rect(fxb + 2, fyb - 4, 2, 24);
-            j2me_gfx_set_color(0xFF0000);
-            j2me_gfx_fill_rect(fxb + 4, fyb - 2, 14, 10);
-            j2me_gfx_set_color(0xFFFFFF);
-            j2me_gfx_fill_rect(fxb + 8, fyb, 6, 6);
-            if ((tempo_estado / 15) % 2 == 0) {
-                j2me_gfx_set_color(0xFFFF00);
-                j2me_gfx_fill_rect(fxb - 1, fyb - 5, 22, 1);
-                j2me_gfx_fill_rect(fxb - 1, fyb + 21, 22, 1);
+        // Fundo (back.png 120x80 esticado)
+        for (int y = 0; y < SCR_H; y++) {
+            for (int x = 0; x < SCR_W; x += 120) {
+                j2me_image_blit(fundo, x, y);
             }
+            y += 79;
         }
 
-        // Tiros
-        for (int i = 0; i < MAX_T; i++) {
-            if (!tiros[i].vivo) continue;
-            j2me_gfx_set_color(tiros[i].vivo == 2 ? 0xFF4040 : 0xFFFF00);
-            j2me_gfx_fill_rect(tiros[i].x - cam_x - 2, tiros[i].y - cam_y - 2, 4, 4);
-        }
+        // Chão
+        j2me_gfx_set_color(0x604020);
+        j2me_gfx_fill_rect(0, CHAO_Y + 20, SCR_W, 60);
 
-        // Inimigos
-        for (int i = 0; i < n_inimigos; i++) {
-            if (!inimigos[i].vivo) continue;
-            // Inimigo olha na direcao do player (invertido)
-            int edx = px - inimigos[i].x;
-            int edy = py - inimigos[i].y;
-            int elin;
-            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 2 : 3;
-            else                     elin = (edy > 0) ? 0 : 1;
-            int ecol = (frame_anim + i) % 3;
-            j2me_image_draw_region(s_axis, ecol*16, elin*16, 16, 16, TRANS_NONE,
-                inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
-        }
+        // Personagem 1 (Ryu) - usa sprite sheet
+        int p1_col = (p1_estado == ST_SOCO) ? 1 :
+                     (p1_estado == ST_CHUTE) ? 2 :
+                     (p1_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
+        int p1_lin = 0;
+        j2me_image_draw_region(sprite, p1_col*25, p1_lin*20, 25, 20,
+            p1_face < 0 ? TRANS_MIRROR : TRANS_NONE,
+            p1_x, p1_y, TOP|LEFT);
 
-        // Explosoes
-        for (int i = 0; i < MAX_X; i++) {
-            if (!explos[i].vivo) continue;
-            int f = explos[i].frame;
-            if (f > 31) f = 31;
-            int col_b = f % 8;
-            int lin_b = f / 8;
-            j2me_image_draw_region(s_bang, col_b*16, lin_b*16, 16, 16, TRANS_NONE,
-                explos[i].x - cam_x, explos[i].y - cam_y, TOP|LEFT);
-        }
+        // Personagem 2 (Lee)
+        int p2_col = (p2_estado == ST_SOCO) ? 1 :
+                     (p2_estado == ST_CHUTE) ? 2 :
+                     (p2_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
+        int p2_lin = 1;
+        j2me_image_draw_region(sprite, p2_col*25, p2_lin*20, 25, 20,
+            p2_face < 0 ? TRANS_NONE : TRANS_MIRROR,
+            p2_x, p2_y, TOP|LEFT);
 
-        // Player - LINHA = direcao, COLUNA = frame de caminhada
-        // direcao: 0=cima, 1=baixo, 2=esq, 3=dir
-        int lin_spr;
-        if (direcao == 0)      lin_spr = 1;  // cima -> sprite baixo
-        else if (direcao == 1) lin_spr = 0;  // baixo -> sprite cima
-        else if (direcao == 2) lin_spr = 3;  // esquerda -> sprite direita
-        else                   lin_spr = 2;  // direita -> sprite esquerda
-        
-        int col_spr = frame_anim % 3;  // 3 frames de caminhada
-        
-        j2me_image_draw_region(s_player, col_spr*16, lin_spr*16, 16, 16, TRANS_NONE,
-            px - cam_x, py - cam_y, TOP|LEFT);
+        // === HUD ===
+        char buf[8];
 
-        if (muzzle_tempo > 0) {
-            j2me_gfx_set_color(0xFFFF00);
-            int mx = px - cam_x + 8, my = py - cam_y + 8;
-            if (direcao == 0) my -= 14;
-            if (direcao == 1) my += 14;
-            if (direcao == 2) mx -= 14;
-            if (direcao == 3) mx += 14;
-            j2me_gfx_fill_rect(mx - 3, my - 3, 6, 6);
-        }
-
-        // HUD
-        char buf[16];
+        // Barra de vida P1
         j2me_gfx_set_color(0xFFFFFF);
-        j2me_font_draw("HP", 10, 10);
-        int_str(hp, buf);
-        j2me_gfx_set_color(hp > 50 ? 0x00FF00 : hp > 20 ? 0xFFFF00 : 0xFF0000);
-        j2me_font_draw(buf, 35, 10);
+        j2me_font_draw("RYU", 10, 10);
+        j2me_gfx_set_color(0xFF0000);
+        j2me_gfx_fill_rect(10, 25, 180, 14);
+        j2me_gfx_set_color(0x00FF00);
+        j2me_gfx_fill_rect(10, 25, 180 * p1_hp / 100, 14);
 
+        // Barra de vida P2
         j2me_gfx_set_color(0xFFFFFF);
-        j2me_font_draw("MUN", 10, 25);
-        int_str(muni, buf);
-        j2me_gfx_set_color(0x00FFFF);
-        j2me_font_draw(buf, 45, 25);
+        j2me_font_draw("LEE", 400, 10);
+        j2me_gfx_set_color(0xFF0000);
+        j2me_gfx_fill_rect(290, 25, 180, 14);
+        j2me_gfx_set_color(0x00FF00);
+        int hp_w = 180 * p2_hp / 100;
+        j2me_gfx_fill_rect(290 + (180 - hp_w), 25, hp_w, 14);
 
-        j2me_gfx_set_color(0xFFFFFF);
-        j2me_font_draw("SCORE", 10, 40);
-        int_str(score, buf);
+        // Timer
         j2me_gfx_set_color(0xFFFF00);
-        j2me_font_draw(buf, 65, 40);
+        int_str(timer_luta, buf);
+        j2me_font_draw(buf, 230, 10);
 
-        j2me_gfx_set_color(0xFFFFFF);
-        j2me_font_draw("MS", 10, 55);
-        int_str(missao_atual + 1, buf);
-        j2me_gfx_set_color(0x80FF80);
-        j2me_font_draw(buf, 40, 55);
-
-        // Seta apontando pra bandeira
-        int dx = flag_x - px, dy = flag_y - py;
-        int dist = (dx*dx + dy*dy);
-        if (dist > 10000) {
-            j2me_gfx_set_color(0xFF4040);
-            j2me_font_draw("-> OBJETIVO", 380, 10);
-        }
-
-        // MINIMAP
-        {
-            int mm_w = 100, mm_h = 75;
-            int mm_x = 370, mm_y = 200;
-            j2me_gfx_set_color(0x000000);
-            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, mm_w + 2, mm_h + 2);
-            j2me_gfx_set_color(0x00FF00);
-            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, mm_w + 2, 1);
-            j2me_gfx_fill_rect(mm_x - 1, mm_y + mm_h, mm_w + 2, 1);
-            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, 1, mm_h + 2);
-            j2me_gfx_fill_rect(mm_x + mm_w, mm_y - 1, 1, mm_h + 2);
-
-            int escala_x = mm_w * 16 / (MAP_W * TILE);
-            int escala_y = mm_h * 16 / (MAP_H * TILE);
-
-            j2me_gfx_set_color(0xFF0000);
-            for (int i = 0; i < n_inimigos; i++) {
-                if (!inimigos[i].vivo) continue;
-                j2me_gfx_fill_rect(mm_x + (inimigos[i].x * escala_x) / 16,
-                                   mm_y + (inimigos[i].y * escala_y) / 16, 2, 2);
-            }
-            j2me_gfx_set_color(0xFFFF00);
-            j2me_gfx_fill_rect(mm_x + (flag_x * escala_x) / 16,
-                               mm_y + (flag_y * escala_y) / 16, 3, 3);
-            j2me_gfx_set_color(0x00FF00);
-            j2me_gfx_fill_rect(mm_x + (px * escala_x) / 16,
-                               mm_y + (py * escala_y) / 16, 3, 3);
-        }
+        // Controles
+        j2me_gfx_set_color(0x808080);
+        j2me_font_draw("D-Pad: mover  X: soco  Cima: chute", 90, 255);
 
         j2me_gfx_flip();
     }
 
-    if (rs) j2me_rms_close(rs);
-    j2me_image_free(s_player);
-    j2me_image_free(s_axis);
-    j2me_image_free(s_ground);
-    j2me_image_free(s_special);
-    j2me_image_free(s_bang);
+    j2me_image_free(sprite);
+    j2me_image_free(fundo);
     j2me_gfx_shutdown();
     sceKernelExitGame();
     return 0;
