@@ -1,4 +1,3 @@
-// Mobile Street Fighter - port pro PSP
 #include <pspkernel.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,19 +7,12 @@
 #include "j2me_image.h"
 #include "j2me_clip.h"
 #include "j2me_runtime.h"
-// Ryu
 #include "msf_ryu_parado.h"
 #include "msf_ryu_soco.h"
 #include "msf_ryu_chute.h"
-#include "msf_ryu_and1.h"
-#include "msf_ryu_and2.h"
-// Lee
 #include "msf_lee_parado.h"
 #include "msf_lee_soco.h"
 #include "msf_lee_chute.h"
-#include "msf_lee_and1.h"
-#include "msf_lee_and2.h"
-// Cenario
 #include "msf_back.h"
 #include "msf_intro.h"
 
@@ -29,12 +21,13 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
 #define SCR_W 480
 #define SCR_H 272
-#define CHAO_Y 200
+#define CHAO_Y 220
+#define P1_INI_X 150
+#define P2_INI_X 330
 
 #define ST_PARADO  0
-#define ST_ANDANDO 1
-#define ST_SOCO    2
-#define ST_CHUTE   3
+#define ST_SOCO    1
+#define ST_CHUTE   2
 
 #define J_INTRO   0
 #define J_LUTA    1
@@ -47,10 +40,8 @@ static J2MEImage* img_from(const unsigned int* src, int w, int h) {
     return img;
 }
 
-// Sprites - Ryu
-static J2MEImage *ryu_parado, *ryu_soco, *ryu_chute, *ryu_and1, *ryu_and2;
-// Sprites - Lee
-static J2MEImage *lee_parado, *lee_soco, *lee_chute, *lee_and1, *lee_and2;
+static J2MEImage *ryu_parado, *ryu_soco, *ryu_chute;
+static J2MEImage *lee_parado, *lee_soco, *lee_chute;
 
 static void desenha_personagem(J2MEImage* img, int x, int y, int flip, int escala) {
     if (!img) return;
@@ -67,16 +58,15 @@ static void desenha_personagem(J2MEImage* img, int x, int y, int flip, int escal
     }
 }
 
-// Estado
-static int p1_x = 120, p1_hp = 100, p1_estado = ST_PARADO, p1_frame_time = 0, p1_face = 1;
-static int p2_x = 340, p2_hp = 100, p2_estado = ST_PARADO, p2_frame_time = 0, p2_face = -1;
+static int p1_x = P1_INI_X, p1_hp = 100, p1_estado = ST_PARADO, p1_frame_time = 0, p1_face = 1;
+static int p2_x = P2_INI_X, p2_hp = 100, p2_estado = ST_PARADO, p2_frame_time = 0, p2_face = -1;
 static int estado = J_INTRO;
 static int tempo_estado = 0;
 static int timer_luta = 99, timer_tick = 0, cooldown_hit = 0;
 
 static void reset_luta(void) {
-    p1_x = 120; p1_hp = 100; p1_estado = ST_PARADO; p1_face = 1;
-    p2_x = 340; p2_hp = 100; p2_estado = ST_PARADO; p2_face = -1;
+    p1_x = P1_INI_X; p1_hp = 100; p1_estado = ST_PARADO; p1_face = 1;
+    p2_x = P2_INI_X; p2_hp = 100; p2_estado = ST_PARADO; p2_face = -1;
     timer_luta = 99; timer_tick = 0; cooldown_hit = 0;
     estado = J_LUTA; tempo_estado = 0;
 }
@@ -91,17 +81,14 @@ static int colidiu(int ax, int aface, int aestado, int bx) {
     return (ataque_x < bx + 40 && ataque_x + alcance > bx);
 }
 
-static J2MEImage* ryu_sprite(int estado_lut, int t) {
-    if (estado_lut == ST_SOCO) return ryu_soco;
-    if (estado_lut == ST_CHUTE) return ryu_chute;
-    if (estado_lut == ST_ANDANDO) return ((t/6)%2==0) ? ryu_and1 : ryu_and2;
+static J2MEImage* ryu_sprite(int e) {
+    if (e == ST_SOCO) return ryu_soco;
+    if (e == ST_CHUTE) return ryu_chute;
     return ryu_parado;
 }
-
-static J2MEImage* lee_sprite(int estado_lut, int t) {
-    if (estado_lut == ST_SOCO) return lee_soco;
-    if (estado_lut == ST_CHUTE) return lee_chute;
-    if (estado_lut == ST_ANDANDO) return ((t/6)%2==0) ? lee_and1 : lee_and2;
+static J2MEImage* lee_sprite(int e) {
+    if (e == ST_SOCO) return lee_soco;
+    if (e == ST_CHUTE) return lee_chute;
     return lee_parado;
 }
 
@@ -123,15 +110,9 @@ int main(void) {
     ryu_parado = img_from(msf_ryu_parado_pixels, MSF_RYU_PARADO_W, MSF_RYU_PARADO_H);
     ryu_soco   = img_from(msf_ryu_soco_pixels,   MSF_RYU_SOCO_W,   MSF_RYU_SOCO_H);
     ryu_chute  = img_from(msf_ryu_chute_pixels,  MSF_RYU_CHUTE_W,  MSF_RYU_CHUTE_H);
-    ryu_and1   = img_from(msf_ryu_and1_pixels,   MSF_RYU_AND1_W,   MSF_RYU_AND1_H);
-    ryu_and2   = img_from(msf_ryu_and2_pixels,   MSF_RYU_AND2_W,   MSF_RYU_AND2_H);
-
     lee_parado = img_from(msf_lee_parado_pixels, MSF_LEE_PARADO_W, MSF_LEE_PARADO_H);
     lee_soco   = img_from(msf_lee_soco_pixels,   MSF_LEE_SOCO_W,   MSF_LEE_SOCO_H);
     lee_chute  = img_from(msf_lee_chute_pixels,  MSF_LEE_CHUTE_W,  MSF_LEE_CHUTE_H);
-    lee_and1   = img_from(msf_lee_and1_pixels,   MSF_LEE_AND1_W,   MSF_LEE_AND1_H);
-    lee_and2   = img_from(msf_lee_and2_pixels,   MSF_LEE_AND2_W,   MSF_LEE_AND2_H);
-
     J2MEImage* fundo = img_from(msf_back_pixels, MSF_BACK_W, MSF_BACK_H);
     J2MEImage* menu  = img_from(msf_intro_pixels, MSF_INTRO_W, MSF_INTRO_H);
 
@@ -142,17 +123,17 @@ int main(void) {
         if (j2me_input_should_quit()) break;
         tempo_estado++;
 
-        // ===== INTRO =====
+        // INTRO
         if (estado == J_INTRO) {
             j2me_gfx_begin_frame();
-            j2me_gfx_clear(0x000000);
-            // Menu (intro1.png 60x330) escalado 1x centralizado
-            j2me_image_blit(menu, 210, -20);
+            j2me_gfx_clear(0x101020);
+            // Menu 60x330: desenha no centro, começa em y=0
+            j2me_image_blit(menu, 210, 20);
             j2me_gfx_set_color(0x00FF00);
             if ((tempo_estado / 20) % 2 == 0)
-                j2me_font_draw("X - LUTAR!", 200, 230);
+                j2me_font_draw("X - LUTAR!", 200, 250);
             j2me_gfx_set_color(0x808080);
-            j2me_font_draw("D-Pad mover | X soco | Cima chute | START sair", 30, 255);
+            j2me_font_draw("D-Pad mover | X soco | Cima chute | START sair", 30, 265);
             j2me_gfx_flip();
             if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
             continue;
@@ -182,13 +163,12 @@ int main(void) {
             continue;
         }
 
-        // ===== LUTA =====
+        // LUTA
         int acoes = j2me_input_get_actions();
 
-        if (p1_estado == ST_PARADO || p1_estado == ST_ANDANDO) {
-            if (acoes & J2ME_LEFT)       { p1_x -= 2; p1_face = -1; p1_estado = ST_ANDANDO; }
-            else if (acoes & J2ME_RIGHT) { p1_x += 2; p1_face = 1;  p1_estado = ST_ANDANDO; }
-            else p1_estado = ST_PARADO;
+        if (p1_estado == ST_PARADO) {
+            if (acoes & J2ME_LEFT)       { p1_x -= 3; p1_face = -1; }
+            else if (acoes & J2ME_RIGHT) { p1_x += 3; p1_face = 1; }
             if (p1_x < 20) p1_x = 20;
             if (p1_x > 280) p1_x = 280;
             if (j2me_input_is_pressed(J2ME_FIRE)) { p1_estado = ST_SOCO; p1_frame_time = 0; }
@@ -198,17 +178,15 @@ int main(void) {
             if (p1_frame_time > 20) { p1_estado = ST_PARADO; p1_frame_time = 0; }
         }
 
-        if (p2_estado == ST_PARADO || p2_estado == ST_ANDANDO) {
+        if (p2_estado == ST_PARADO) {
             int dist = p1_x - p2_x;
             p2_face = (dist > 0) ? 1 : -1;
             if (abs(dist) > 70) {
-                p2_x += (dist > 0) ? 1 : -1;
-                p2_estado = ST_ANDANDO;
+                p2_x += (dist > 0) ? 2 : -2;
             } else {
                 int r = j2me_random_next(100);
-                if (r < 4)      { p2_estado = ST_SOCO;  p2_frame_time = 0; }
-                else if (r < 7) { p2_estado = ST_CHUTE; p2_frame_time = 0; }
-                else p2_estado = ST_PARADO;
+                if (r < 5)      { p2_estado = ST_SOCO;  p2_frame_time = 0; }
+                else if (r < 8) { p2_estado = ST_CHUTE; p2_frame_time = 0; }
             }
             if (p2_x < 180) p2_x = 180;
             if (p2_x > 440) p2_x = 440;
@@ -227,36 +205,31 @@ int main(void) {
         if (timer_tick >= 60) {
             timer_tick = 0;
             timer_luta--;
-            if (timer_luta <= 0) {
-                estado = (p1_hp >= p2_hp) ? J_VITORIA : J_DERROTA;
-                continue;
-            }
+            if (timer_luta <= 0) { estado = (p1_hp >= p2_hp) ? J_VITORIA : J_DERROTA; continue; }
         }
         if (p1_hp <= 0) { estado = J_DERROTA; continue; }
         if (p2_hp <= 0) { estado = J_VITORIA; continue; }
 
         // ===== DESENHO =====
         j2me_gfx_begin_frame();
-        j2me_gfx_clear(0x201020);
+        j2me_gfx_clear(0x000000);
 
-        // Fundo tiled em cima
-        for (int y = 0; y < CHAO_Y; y += 80) {
-            for (int x = 0; x < SCR_W; x += 120) {
-                j2me_image_blit(fundo, x, y);
-            }
+        // Fundo: 1 linha só (parte de cima), resto cor sólida
+        for (int x = 0; x < SCR_W; x += 120) {
+            j2me_image_blit(fundo, x, 0);
         }
+        j2me_gfx_set_color(0x201040);
+        j2me_gfx_fill_rect(0, 80, SCR_W, CHAO_Y - 80);
+        // Chão
         j2me_gfx_set_color(0x604020);
         j2me_gfx_fill_rect(0, CHAO_Y, SCR_W, SCR_H - CHAO_Y);
-        j2me_gfx_set_color(0x302010);
-        j2me_gfx_fill_rect(0, CHAO_Y - 2, SCR_W, 2);
+        j2me_gfx_set_color(0x301808);
+        j2me_gfx_fill_rect(0, CHAO_Y, SCR_W, 2);
 
-        // Ryu (esquerda)
-        desenha_personagem(ryu_sprite(p1_estado, tempo_estado),
-            p1_x, CHAO_Y + 10, p1_face < 0, 3);
-
-        // Lee (direita)
-        desenha_personagem(lee_sprite(p2_estado, tempo_estado),
-            p2_x, CHAO_Y + 10, p2_face > 0, 3);
+        // Ryu
+        desenha_personagem(ryu_sprite(p1_estado), p1_x, CHAO_Y, p1_face < 0, 3);
+        // Lee
+        desenha_personagem(lee_sprite(p2_estado), p2_x, CHAO_Y, p2_face > 0, 3);
 
         // HUD
         char buf[8];
@@ -280,16 +253,11 @@ int main(void) {
         j2me_font_draw(buf, 230, 12);
 
         j2me_gfx_set_color(0x808080);
-        j2me_font_draw("D-Pad mover | X soco | Cima chute", 90, 255);
+        j2me_font_draw("D-Pad mover | X soco | Cima chute", 90, 265);
 
         j2me_gfx_flip();
     }
 
-    j2me_image_free(ryu_parado); j2me_image_free(ryu_soco); j2me_image_free(ryu_chute);
-    j2me_image_free(ryu_and1); j2me_image_free(ryu_and2);
-    j2me_image_free(lee_parado); j2me_image_free(lee_soco); j2me_image_free(lee_chute);
-    j2me_image_free(lee_and1); j2me_image_free(lee_and2);
-    j2me_image_free(fundo); j2me_image_free(menu);
     j2me_gfx_shutdown();
     sceKernelExitGame();
     return 0;
