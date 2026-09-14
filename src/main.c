@@ -214,12 +214,16 @@ int main(void) {
         j2me_gfx_begin_frame();
         j2me_gfx_clear(0x000000);
 
-        // Fundo: 1 linha só (parte de cima), resto cor sólida
-        for (int x = 0; x < SCR_W; x += 120) {
-            j2me_image_blit(fundo, x, 0);
-        }
-        j2me_gfx_set_color(0x201040);
-        j2me_gfx_fill_rect(0, 80, SCR_W, CHAO_Y - 80);
+        // Fundo: ceu solido + 1 copia do back.png no topo
+        // Cor do ceu (roxo escuro combinando com chao)
+        j2me_gfx_set_color(0x2A1848);
+        j2me_gfx_fill_rect(0, 0, SCR_W, CHAO_Y);
+        // back.png (120x80) desenhado 2x: um na esquerda, um na direita
+        j2me_image_blit(fundo, 0, 0);
+        j2me_image_blit(fundo, 360, 0);
+        // Gradiente simples entre os dois (preenche o meio)
+        j2me_gfx_set_color(0x1A1038);
+        j2me_gfx_fill_rect(120, 0, 240, 80);
         // Chão
         j2me_gfx_set_color(0x604020);
         j2me_gfx_fill_rect(0, CHAO_Y, SCR_W, SCR_H - CHAO_Y);
