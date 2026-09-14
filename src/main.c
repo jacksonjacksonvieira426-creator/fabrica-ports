@@ -14,6 +14,7 @@
 #include "cod_axis.h"
 #include "cod_ground.h"
 #include "cod_special.h"
+#include "cod_bang.h"
 #include "missoes.h"
 
 PSP_MODULE_INFO("cod_psp", 0, 1, 0);
@@ -60,6 +61,11 @@ static int n_inimigos;
 // Tiros
 typedef struct { int x, y, dx, dy, vivo, tempo; } Tiro;
 static Tiro tiros[MAX_T];
+
+typedef struct { int x, y, frame, tempo, vivo; } Explosao;
+#define MAX_X 16
+static Explosao explos[MAX_X];
+static int muzzle_tempo = 0;
 
 // Estado global
 static Estado estado = ST_BRIEFING;
@@ -226,6 +232,8 @@ static void iniciar_missao(int m) {
     gerar_mapa(MISSOES[m].seed, MISSOES[m].dificuldade);
     spawn_inimigos(MISSOES[m].n_inimigos);
     memset(tiros, 0, sizeof(tiros));
+    memset(explos, 0, sizeof(explos));
+    muzzle_tempo = 0;
 
     hp = 100;
     muni = 30 + missao_atual * 5;
@@ -286,6 +294,7 @@ int main(void) {
     J2MEImage* s_axis   = img_from(cod_axis_pixels,   COD_AXIS_W,   COD_AXIS_H);
     J2MEImage* s_ground = img_from(cod_ground_pixels, COD_GROUND_W, COD_GROUND_H);
     J2MEImage* s_special = img_from(cod_special_pixels, COD_SPECIAL_W, COD_SPECIAL_H);
+    J2MEImage* s_bang = img_from(cod_bang_pixels, COD_BANG_W, COD_BANG_H);
 
     rs = j2me_rms_open("cod_save", 1);
     iniciar_missao(0);
@@ -417,7 +426,7 @@ int main(void) {
         if (a & J2ME_RIGHT) { direcao = 3; if (livre(px+2, py)) { px += 2; moveu = 1; } }
         if (a & J2ME_UP)    { direcao = 0; if (livre(px, py-2)) { py -= 2; moveu = 1; } }
         if (a & J2ME_DOWN)  { direcao = 1; if (livre(px, py+2)) { py += 2; moveu = 1; } }
-        if (j2me_input_is_pressed(J2ME_FIRE)) atirar();
+        if (j2me_input_is_pressed(J2ME_FIRE)) { atirar(); muzzle_tempo = 4; }
 
         if (moveu) { frame_time++; if (frame_time > 6) { frame_anim = (frame_anim+1)%3; frame_time = 0; } }
 
@@ -439,6 +448,16 @@ int main(void) {
                         inimigos[j].vivo = 0;
                         score += 100;
                         mortos_total++;
+                        for (int k = 0; k < MAX_X; k++) {
+                            if (!explos[k].vivo) {
+                                explos[k].x = inimigos[j].x;
+                                explos[k].y = inimigos[j].y;
+                                explos[k].frame = 0;
+                                explos[k].tempo = 24;
+                                explos[k].vivo = 1;
+                                break;
+                            }
+                        }
                     }
                     tiros[i].vivo = 0;
                     break;
@@ -483,6 +502,14 @@ int main(void) {
 
         // Recarrega municao com o tempo (de graca)
         if (tempo_estado % 120 == 0 && muni < 50) muni++;
+        if (muzzle_tempo > 0) muzzle_tempo--;
+
+        for (int i = 0; i < MAX_X; i++) {
+            if (!explos[i].vivo) continue;
+            explos[i].tempo--;
+            explos[i].frame = (24 - explos[i].tempo) / 3;
+            if (explos[i].tempo <= 0) explos[i].vivo = 0;
+        }
 
         // ===== DESENHO =====
         int cam_x = get_cam_x();
@@ -519,6 +546,17 @@ int main(void) {
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
         }
 
+        // Explosoes
+        for (int i = 0; i < MAX_X; i++) {
+            if (!explos[i].vivo) continue;
+            int f = explos[i].frame;
+            if (f > 31) f = 31;
+            int col_b = f % 8;
+            int lin_b = f / 8;
+            j2me_image_draw_region(s_bang, col_b*16, lin_b*16, 16, 16, TRANS_NONE,
+                explos[i].x - cam_x, explos[i].y - cam_y, TOP|LEFT);
+        }
+
         // Player - LINHA = direcao, COLUNA = frame de caminhada
         // direcao: 0=cima, 1=baixo, 2=esq, 3=dir
         int lin_spr;
@@ -531,6 +569,16 @@ int main(void) {
         
         j2me_image_draw_region(s_player, col_spr*16, lin_spr*16, 16, 16, TRANS_NONE,
             px - cam_x, py - cam_y, TOP|LEFT);
+
+        if (muzzle_tempo > 0) {
+            j2me_gfx_set_color(0xFFFF00);
+            int mx = px - cam_x + 8, my = py - cam_y + 8;
+            if (direcao == 0) my -= 14;
+            if (direcao == 1) my += 14;
+            if (direcao == 2) mx -= 14;
+            if (direcao == 3) mx += 14;
+            j2me_gfx_fill_rect(mx - 3, my - 3, 6, 6);
+        }
 
         // HUD
         char buf[16];
@@ -566,6 +614,35 @@ int main(void) {
             j2me_font_draw("-> OBJETIVO", 380, 10);
         }
 
+        // MINIMAP
+        {
+            int mm_w = 100, mm_h = 75;
+            int mm_x = 370, mm_y = 200;
+            j2me_gfx_set_color(0x000000);
+            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, mm_w + 2, mm_h + 2);
+            j2me_gfx_set_color(0x00FF00);
+            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, mm_w + 2, 1);
+            j2me_gfx_fill_rect(mm_x - 1, mm_y + mm_h, mm_w + 2, 1);
+            j2me_gfx_fill_rect(mm_x - 1, mm_y - 1, 1, mm_h + 2);
+            j2me_gfx_fill_rect(mm_x + mm_w, mm_y - 1, 1, mm_h + 2);
+
+            int escala_x = mm_w * 16 / (MAP_W * TILE);
+            int escala_y = mm_h * 16 / (MAP_H * TILE);
+
+            j2me_gfx_set_color(0xFF0000);
+            for (int i = 0; i < n_inimigos; i++) {
+                if (!inimigos[i].vivo) continue;
+                j2me_gfx_fill_rect(mm_x + (inimigos[i].x * escala_x) / 16,
+                                   mm_y + (inimigos[i].y * escala_y) / 16, 2, 2);
+            }
+            j2me_gfx_set_color(0xFFFF00);
+            j2me_gfx_fill_rect(mm_x + (flag_x * escala_x) / 16,
+                               mm_y + (flag_y * escala_y) / 16, 3, 3);
+            j2me_gfx_set_color(0x00FF00);
+            j2me_gfx_fill_rect(mm_x + (px * escala_x) / 16,
+                               mm_y + (py * escala_y) / 16, 3, 3);
+        }
+
         j2me_gfx_flip();
     }
 
@@ -574,6 +651,7 @@ int main(void) {
     j2me_image_free(s_axis);
     j2me_image_free(s_ground);
     j2me_image_free(s_special);
+    j2me_image_free(s_bang);
     j2me_gfx_shutdown();
     sceKernelExitGame();
     return 0;
