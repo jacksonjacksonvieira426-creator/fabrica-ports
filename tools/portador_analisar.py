@@ -99,25 +99,59 @@ def analisar_classe(cf, nome_arquivo, classes_internas):
         apis_m = {}
         n_instr = 0
 
+        # Novas analises: guarda valores constantes e chamadas com ordem
+        constantes = []  # [(indice, valor, tipo)]
+        chamadas = []    # [(indice, api, args_antes)]
+        saltos = []      # [(indice, tipo, destino)]
+        fields = []      # [(indice, op, classe_campo)]
+
         if m.code:
             try:
                 instrs = list(m.code.disassemble())
                 n_instr = len(instrs)
-                for i in instrs:
-                    if i.mnemonic not in ("invokevirtual","invokestatic",
-                                          "invokespecial","invokeinterface"):
-                        continue
-                    if not i.operands: continue
-                    try:
-                        const = cf.constants.get(i.operands[0].value)
-                        owner = const.class_.name.value
-                        nome_met = const.name_and_type.name.value
-                    except Exception:
-                        continue
-                    if owner in classes_internas: continue
-                    k = f"{owner}.{nome_met}"
-                    apis_m[k] = apis_m.get(k, 0) + 1
-                    todas_apis[k] = todas_apis.get(k, 0) + 1
+                for idx, i in enumerate(instrs):
+                    mn = i.mnemonic
+                    ops = i.operands
+
+                    # Constantes diretas
+                    if mn.startswith("iconst_"):
+                        v = int(mn.split("_")[1]) if mn != "iconst_m1" else -1
+                        constantes.append((idx, v))
+                    elif mn == "bipush" and ops:
+                        constantes.append((idx, ops[0].value))
+                    elif mn == "sipush" and ops:
+                        constantes.append((idx, ops[0].value))
+
+                    # Chamadas de metodo
+                    if mn in ("invokevirtual","invokestatic","invokespecial","invokeinterface"):
+                        if not ops: continue
+                        try:
+                            const = cf.constants.get(ops[0].value)
+                            owner = const.class_.name.value
+                            nome_met = const.name_and_type.name.value
+                        except Exception:
+                            continue
+                        if owner in classes_internas: continue
+                        k = f"{owner}.{nome_met}"
+                        apis_m[k] = apis_m.get(k, 0) + 1
+                        todas_apis[k] = todas_apis.get(k, 0) + 1
+                        chamadas.append((idx, k))
+
+                    # Campos
+                    if mn in ("getfield","putfield","getstatic","putstatic"):
+                        if not ops: continue
+                        try:
+                            const = cf.constants.get(ops[0].value)
+                            cls = const.class_.name.value.split("/")[-1]
+                            nome_campo = const.name_and_type.name.value
+                        except Exception:
+                            continue
+                        fields.append((idx, mn, f"{cls}.{nome_campo}"))
+
+                    # Saltos
+                    if mn.startswith("if") or mn == "goto":
+                        if ops:
+                            saltos.append((idx, mn, ops[0].value))
             except Exception:
                 pass
 
@@ -127,6 +161,9 @@ def analisar_classe(cf, nome_arquivo, classes_internas):
             "tipo_ret": tipo_para_c(desc_m.split(")")[-1]) if ")" in desc_m else "void",
             "n_instr": n_instr,
             "apis": apis_m,
+            "constantes": constantes[:20],
+            "chamadas": chamadas[:20],
+            "fields": fields[:20],
         })
 
     padroes = detectar_padroes(super_nome, [(m["nome"], m["desc"]) for m in metodos],
