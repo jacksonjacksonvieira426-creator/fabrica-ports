@@ -31,8 +31,8 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 #define T_GRAMA  0
 #define T_TERRA  1
 #define T_AGUA   10
-#define T_PEDRA  14
-#define T_GRAMA2 2
+#define T_PEDRA  16
+#define T_GRAMA2 26
 
 // Estados do jogo
 typedef enum {
@@ -545,13 +545,14 @@ int main(void) {
         // Inimigos
         for (int i = 0; i < n_inimigos; i++) {
             if (!inimigos[i].vivo) continue;
-            // Inimigo olha na direcao do player
+            // Inimigo olha na direcao do player + anima
             int edx = px - inimigos[i].x;
             int edy = py - inimigos[i].y;
             int elin;
-            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 3 : 2;  // dir ou esq
-            else                     elin = (edy > 0) ? 1 : 0;  // baixo ou cima
-            j2me_image_draw_region(s_axis, 0, elin*16, 16, 16, TRANS_NONE,
+            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 3 : 2;
+            else                     elin = (edy > 0) ? 1 : 0;
+            int ecol = (frame_anim + i) % 3;
+            j2me_image_draw_region(s_axis, ecol*16, elin*16, 16, 16, TRANS_NONE,
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
         }
 
