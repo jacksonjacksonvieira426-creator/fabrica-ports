@@ -65,6 +65,7 @@ static Tiro tiros[MAX_T];
 typedef struct { int x, y, frame, tempo, vivo; } Explosao;
 #define MAX_X 16
 static Explosao explos[MAX_X];
+static int inimigo_tiro_cd[MAX_E];
 static int muzzle_tempo = 0;
 
 // Estado global
@@ -176,6 +177,7 @@ static void spawn_inimigos(int n) {
         inimigos[i].x = tx * TILE;
         inimigos[i].y = ty * TILE;
         inimigos[i].hp = 20 + missao_atual * 5;
+        inimigo_tiro_cd[i] = 60 + i * 20;
         inimigos[i].vivo = 1;
     }
 }
@@ -439,6 +441,20 @@ int main(void) {
             if (tiros[i].tempo <= 0 || tiros[i].x < 0 || tiros[i].x > MAP_W*TILE ||
                 tiros[i].y < 0 || tiros[i].y > MAP_H*TILE ||
                 tile_solido(tiros[i].x, tiros[i].y)) { tiros[i].vivo = 0; continue; }
+            // Tiro do inimigo acerta o player
+            if (tiros[i].vivo == 2) {
+                if (tiros[i].x > px && tiros[i].x < px + 16 &&
+                    tiros[i].y > py && tiros[i].y < py + 16) {
+                    if (cooldown_dano <= 0) {
+                        hp -= 15;
+                        cooldown_dano = 30;
+                    }
+                    tiros[i].vivo = 0;
+                    continue;
+                }
+                continue;  // tiro inimigo nao checa colisao com outros inimigos
+            }
+
             for (int j = 0; j < n_inimigos; j++) {
                 if (!inimigos[j].vivo) continue;
                 if (tiros[i].x > inimigos[j].x && tiros[i].x < inimigos[j].x + 16 &&
@@ -481,6 +497,26 @@ int main(void) {
                 if (cooldown_dano <= 0) {
                     hp -= 10;
                     cooldown_dano = 30;
+                }
+            }
+
+            // Tiro do inimigo (a cada X frames, se perto)
+            if (inimigo_tiro_cd[i] > 0) inimigo_tiro_cd[i]--;
+            if (inimigo_tiro_cd[i] <= 0 && dx*dx + dy*dy < 40000) {
+                for (int k = 0; k < MAX_T; k++) {
+                    if (tiros[k].vivo) continue;
+                    tiros[k].x = inimigos[i].x + 6;
+                    tiros[k].y = inimigos[i].y + 8;
+                    tiros[k].dx = 0; tiros[k].dy = 0;
+                    if (abs(dx) > abs(dy)) {
+                        tiros[k].dx = (dx > 0) ? 6 : -6;
+                    } else {
+                        tiros[k].dy = (dy > 0) ? 6 : -6;
+                    }
+                    tiros[k].vivo = 2;  // 2 = tiro inimigo
+                    tiros[k].tempo = 80;
+                    inimigo_tiro_cd[i] = 90 + (i * 15) % 60;
+                    break;
                 }
             }
         }
@@ -537,20 +573,21 @@ int main(void) {
         }
 
         // Tiros
-        j2me_gfx_set_color(0xFFFF00);
-        for (int i = 0; i < MAX_T; i++)
-            if (tiros[i].vivo)
-                j2me_gfx_fill_rect(tiros[i].x - cam_x - 2, tiros[i].y - cam_y - 2, 4, 4);
+        for (int i = 0; i < MAX_T; i++) {
+            if (!tiros[i].vivo) continue;
+            j2me_gfx_set_color(tiros[i].vivo == 2 ? 0xFF4040 : 0xFFFF00);
+            j2me_gfx_fill_rect(tiros[i].x - cam_x - 2, tiros[i].y - cam_y - 2, 4, 4);
+        }
 
         // Inimigos
         for (int i = 0; i < n_inimigos; i++) {
             if (!inimigos[i].vivo) continue;
-            // Inimigo olha na direcao do player + anima
+            // Inimigo olha na direcao do player (invertido)
             int edx = px - inimigos[i].x;
             int edy = py - inimigos[i].y;
             int elin;
-            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 3 : 2;
-            else                     elin = (edy > 0) ? 1 : 0;
+            if (abs(edx) > abs(edy)) elin = (edx > 0) ? 2 : 3;
+            else                     elin = (edy > 0) ? 0 : 1;
             int ecol = (frame_anim + i) % 3;
             j2me_image_draw_region(s_axis, ecol*16, elin*16, 16, 16, TRANS_NONE,
                 inimigos[i].x - cam_x, inimigos[i].y - cam_y, TOP|LEFT);
