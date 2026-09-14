@@ -123,19 +123,50 @@ int main(void) {
         if (j2me_input_should_quit()) break;
         tempo_estado++;
 
-        // INTRO
+        // INTRO - slideshow de 6 fatias do menu + splash de titulo
         if (estado == J_INTRO) {
             j2me_gfx_begin_frame();
-            j2me_gfx_clear(0x101020);
-            // Menu 60x330: desenha no centro, começa em y=0
-            j2me_image_blit(menu, 210, 20);
-            j2me_gfx_set_color(0x00FF00);
-            if ((tempo_estado / 20) % 2 == 0)
-                j2me_font_draw("X - LUTAR!", 200, 250);
-            j2me_gfx_set_color(0x808080);
-            j2me_font_draw("D-Pad mover | X soco | Cima chute | START sair", 30, 265);
+            j2me_gfx_clear(0x000000);
+
+            // Se ainda no slideshow (0-5)
+            if (tempo_estado < 6 * 30) {  // 6 fatias, 30 frames cada (~0.5s)
+                int fatia = tempo_estado / 30;  // 0..5
+                if (fatia > 5) fatia = 5;
+                // Fatia da imagem: (0, fatia*55, 60, 55)
+                j2me_image_draw_region(menu, 0, fatia * 55, 60, 55, TRANS_NONE,
+                    210, 80, TOP|LEFT);
+                // Barra de progresso
+                j2me_gfx_set_color(0x404040);
+                j2me_gfx_fill_rect(180, 220, 120, 4);
+                j2me_gfx_set_color(0x00FF00);
+                j2me_gfx_fill_rect(180, 220, (tempo_estado * 120) / (6*30), 4);
+            } else {
+                // Titulo do jogo
+                j2me_gfx_set_color(0xFF0000);
+                j2me_font_draw("MOBILE", 180, 60);
+                j2me_gfx_set_color(0xFFFF00);
+                j2me_font_draw("STREET FIGHTER", 150, 85);
+                j2me_gfx_set_color(0xFFFFFF);
+                j2me_font_draw("PSP EDITION", 180, 110);
+
+                j2me_gfx_set_color(0x00FF00);
+                if ((tempo_estado / 20) % 2 == 0)
+                    j2me_font_draw("X - LUTAR!", 200, 180);
+
+                j2me_gfx_set_color(0x808080);
+                j2me_font_draw("D-Pad mover | X soco | Cima chute | START sair", 30, 250);
+            }
+
             j2me_gfx_flip();
-            if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
+
+            // Avanca pro menu apos 6*30 + 60 frames (~3s total)
+            if (tempo_estado > 6 * 30 + 60) {
+                // Pode comecar
+                if (j2me_input_is_pressed(J2ME_FIRE)) reset_luta();
+            } else if (j2me_input_is_pressed(J2ME_FIRE) && tempo_estado > 30) {
+                // Pula intro
+                tempo_estado = 6 * 30 + 60;
+            }
             continue;
         }
 
