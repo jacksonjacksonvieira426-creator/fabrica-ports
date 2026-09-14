@@ -248,15 +248,17 @@ int main(void) {
         j2me_gfx_begin_frame();
         j2me_gfx_clear(0x201020);
 
-        // Fundo: 4 cópias horizontais na parte de cima
-        for (int x = 0; x < SCR_W; x += 120) {
-            j2me_image_blit(fundo, x, 20);
+        // Fundo: blita o back.png (120x80) ate preencher tudo acima do chao
+        for (int y = 0; y < CHAO_Y; y += 80) {
+            for (int x = 0; x < SCR_W; x += 120) {
+                j2me_image_blit(fundo, x, y);
+            }
         }
-        // Chão (marrom)
+        // Chao (marrom)
         j2me_gfx_set_color(0x604020);
         j2me_gfx_fill_rect(0, CHAO_Y, SCR_W, SCR_H - CHAO_Y);
-        // Linha do horizonte
-        j2me_gfx_set_color(0x303030);
+        // Linha de horizonte (sombra)
+        j2me_gfx_set_color(0x302010);
         j2me_gfx_fill_rect(0, CHAO_Y - 2, SCR_W, 2);
 
         // Ryu
