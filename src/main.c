@@ -117,6 +117,30 @@ static void int_str(int n, char* b) {
     b[i] = 0;
 }
 
+
+// Desenha sprite do GIF original (com escala 3x)
+typedef struct { int x, y, w, h; } Sprite;
+
+static const Sprite SPR_PARADO = { 0, 41, 15, 34};
+static const Sprite SPR_SOCO   = {16, 41, 19, 34};
+static const Sprite SPR_CHUTE  = {37, 41, 33, 34};
+static const Sprite SPR_AND1   = { 0, 77, 21, 19};
+static const Sprite SPR_AND2   = {22, 77, 38, 19};
+
+static void desenha_sprite(J2MEImage* sheet, const Sprite* sp, int x, int y, int flip, int escala) {
+    for (int sy = 0; sy < sp->h; sy++) {
+        for (int sx = 0; sx < sp->w; sx++) {
+            int px_idx = (sp->y + sy) * MSF_SPRITE_W + (sp->x + sx);
+            if (px_idx >= MSF_SPRITE_W * MSF_SPRITE_H) continue;
+            unsigned int cor = sheet->pixels[px_idx];
+            if ((cor & 0xFF000000) == 0) continue;
+            j2me_gfx_set_color(cor & 0xFFFFFF);
+            int dx = flip ? (x + (sp->w - 1 - sx) * escala) : (x + sx * escala);
+            j2me_gfx_fill_rect(dx, y + sy * escala, escala, escala);
+        }
+    }
+}
+
 int main(void) {
     j2me_gfx_init();
     j2me_input_init();
@@ -293,46 +317,25 @@ int main(void) {
         j2me_gfx_fill_rect(0, CHAO_Y + 20, SCR_W, 60);
 
         // Personagem 1 (Ryu) - usa sprite sheet
-        int p1_col = (p1_estado == ST_SOCO) ? 1 :
-                     (p1_estado == ST_CHUTE) ? 2 :
-                     (p1_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
-        int p1_lin = 0;
-        // Desenha Ryu em escala 2x (pixel por pixel)
+        // Ryu: escolhe sprite pelo estado
         {
-            int base_x = p1_col * 20;
-            int base_y = p1_lin * 20;
-            for (int sy = 0; sy < 20; sy++) {
-                for (int sx = 0; sx < 20; sx++) {
-                    int px_idx = (base_y + sy) * MSF_SPRITE_W + (base_x + sx);
-                    if (px_idx >= MSF_SPRITE_W * MSF_SPRITE_H) continue;
-                    unsigned int cor = sprite->pixels[px_idx];
-                    if ((cor & 0xFF000000) == 0) continue;
-                    int draw_x = p1_face < 0 ? (p1_x + (19 - sx) * 3) : (p1_x + sx * 3);
-                    j2me_gfx_set_color(cor & 0xFFFFFF);
-                    j2me_gfx_fill_rect(draw_x, p1_y + sy * 3, 3, 3);
-                }
-            }
+            const Sprite* sp = &SPR_PARADO;
+            if (p1_estado == ST_SOCO) sp = &SPR_SOCO;
+            else if (p1_estado == ST_CHUTE) sp = &SPR_CHUTE;
+            else if (p1_estado == ST_ANDANDO) sp = ((tempo_estado/6)%2 == 0) ? &SPR_AND1 : &SPR_AND2;
+            // Ponto do pé no chão
+            int y_base = CHAO_Y - sp->h * 3 + 34 * 3;
+            desenha_sprite(sprite, sp, p1_x, y_base, p1_face < 0, 3);
         }
 
         // Personagem 2 (Lee)
-        int p2_col = (p2_estado == ST_SOCO) ? 1 :
-                     (p2_estado == ST_CHUTE) ? 2 :
-                     (p2_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
-        int p2_lin = 1;
         {
-            int base_x = p2_col * 20;
-            int base_y = p2_lin * 20;
-            for (int sy = 0; sy < 20; sy++) {
-                for (int sx = 0; sx < 20; sx++) {
-                    int px_idx = (base_y + sy) * MSF_SPRITE_W + (base_x + sx);
-                    if (px_idx >= MSF_SPRITE_W * MSF_SPRITE_H) continue;
-                    unsigned int cor = sprite->pixels[px_idx];
-                    if ((cor & 0xFF000000) == 0) continue;
-                    int draw_x = p2_face > 0 ? (p2_x + (19 - sx) * 3) : (p2_x + sx * 3);
-                    j2me_gfx_set_color(cor & 0xFFFFFF);
-                    j2me_gfx_fill_rect(draw_x, p2_y + sy * 3, 3, 3);
-                }
-            }
+            const Sprite* sp = &SPR_PARADO;
+            if (p2_estado == ST_SOCO) sp = &SPR_SOCO;
+            else if (p2_estado == ST_CHUTE) sp = &SPR_CHUTE;
+            else if (p2_estado == ST_ANDANDO) sp = ((tempo_estado/6)%2 == 0) ? &SPR_AND1 : &SPR_AND2;
+            int y_base = CHAO_Y - sp->h * 3 + 34 * 3;
+            desenha_sprite(sprite, sp, p2_x, y_base, p2_face > 0, 3);
         }
 
         // === HUD ===
