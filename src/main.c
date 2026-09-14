@@ -16,7 +16,7 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
 #define SCR_W 480
 #define SCR_H 272
-#define CHAO_Y 220
+#define CHAO_Y 150
 
 // Estados do lutador
 #define ST_PARADO   0
@@ -29,7 +29,7 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER);
 
 // Sprites (coluna, linha) na sprite sheet
 // Assumindo: 4 cols x 5 rows, sprites ~25x20
-#define SPR_W 25
+#define SPR_W 20
 #define SPR_H 20
 
 // Estados do jogo
@@ -281,12 +281,11 @@ int main(void) {
         j2me_gfx_begin_frame();
         j2me_gfx_clear(0x402040);
 
-        // Fundo (back.png 120x80 esticado)
-        for (int y = 0; y < SCR_H; y++) {
-            for (int x = 0; x < SCR_W; x += 120) {
-                j2me_image_blit(fundo, x, y);
-            }
-            y += 79;
+        // Fundo - back.png (120x80) esticado verticalmente
+        for (int x = 0; x < SCR_W; x += 120) {
+            j2me_image_blit(fundo, x, 0);
+            j2me_image_blit(fundo, x, 80);
+            j2me_image_blit(fundo, x, 160);
         }
 
         // Chão
@@ -298,18 +297,43 @@ int main(void) {
                      (p1_estado == ST_CHUTE) ? 2 :
                      (p1_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
         int p1_lin = 0;
-        j2me_image_draw_region(sprite, p1_col*25, p1_lin*20, 25, 20,
-            p1_face < 0 ? TRANS_MIRROR : TRANS_NONE,
-            p1_x, p1_y, TOP|LEFT);
+        // Desenha Ryu em escala 2x (pixel por pixel)
+        {
+            int base_x = p1_col * 20;
+            int base_y = p1_lin * 20;
+            for (int sy = 0; sy < 20; sy++) {
+                for (int sx = 0; sx < 20; sx++) {
+                    int px_idx = (base_y + sy) * MSF_SPRITE_W + (base_x + sx);
+                    if (px_idx >= MSF_SPRITE_W * MSF_SPRITE_H) continue;
+                    unsigned int cor = sprite->pixels[px_idx];
+                    if ((cor & 0xFF000000) == 0) continue;
+                    int draw_x = p1_face < 0 ? (p1_x + (19 - sx) * 3) : (p1_x + sx * 3);
+                    j2me_gfx_set_color(cor & 0xFFFFFF);
+                    j2me_gfx_fill_rect(draw_x, p1_y + sy * 3, 3, 3);
+                }
+            }
+        }
 
         // Personagem 2 (Lee)
         int p2_col = (p2_estado == ST_SOCO) ? 1 :
                      (p2_estado == ST_CHUTE) ? 2 :
                      (p2_estado == ST_ANDANDO) ? ((tempo_estado / 6) % 2) : 0;
         int p2_lin = 1;
-        j2me_image_draw_region(sprite, p2_col*25, p2_lin*20, 25, 20,
-            p2_face < 0 ? TRANS_NONE : TRANS_MIRROR,
-            p2_x, p2_y, TOP|LEFT);
+        {
+            int base_x = p2_col * 20;
+            int base_y = p2_lin * 20;
+            for (int sy = 0; sy < 20; sy++) {
+                for (int sx = 0; sx < 20; sx++) {
+                    int px_idx = (base_y + sy) * MSF_SPRITE_W + (base_x + sx);
+                    if (px_idx >= MSF_SPRITE_W * MSF_SPRITE_H) continue;
+                    unsigned int cor = sprite->pixels[px_idx];
+                    if ((cor & 0xFF000000) == 0) continue;
+                    int draw_x = p2_face > 0 ? (p2_x + (19 - sx) * 3) : (p2_x + sx * 3);
+                    j2me_gfx_set_color(cor & 0xFFFFFF);
+                    j2me_gfx_fill_rect(draw_x, p2_y + sy * 3, 3, 3);
+                }
+            }
+        }
 
         // === HUD ===
         char buf[8];
