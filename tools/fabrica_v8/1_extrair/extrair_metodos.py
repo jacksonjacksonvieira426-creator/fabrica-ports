@@ -55,6 +55,9 @@ def extrair(jar, pasta):
             except: continue
             
             nome_metodo = m.name.value.replace("<init>", "constructor").replace("/", "_")
+            # Remove _ inicial (padroniza)
+            if nome_metodo.startswith("_"):
+                nome_metodo = "f" + nome_metodo[1:]
             descricao = m.descriptor.value
             
             # Monta arquivo com: header + instrucoes legiveis
