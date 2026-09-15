@@ -23,6 +23,8 @@ def analisar(estrutura):
         metodos = [m["nome"] for m in c["metodos"]]
         if "reset" in metodos and "forward" in metodos and "punch" in metodos:
             personagens.append(c["nome"])
+    # Ordena: nomes com "Ryu" (jogador) primeiro, outros depois
+    personagens.sort(key=lambda x: (0 if "Ryu" in x else 1, x))
     
     # Detecta classe de canvas principal
     canvas_principal = None
